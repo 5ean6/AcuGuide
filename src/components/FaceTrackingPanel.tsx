@@ -1,0 +1,570 @@
+import {
+  Camera,
+  Loader2,
+  LocateFixed,
+  ShieldCheck,
+  VideoOff,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  FaceLandmarker,
+  FilesetResolver,
+  type FaceLandmarkerResult,
+  type NormalizedLandmark,
+} from "@mediapipe/tasks-vision";
+
+type TrackingStatus = "idle" | "loading" | "running" | "error";
+
+type FaceSummary = {
+  visibleCount: number;
+  instruction: string;
+  faceCoverage: number;
+  centerOffset: number;
+};
+
+type FaceTrackingPanelProps = {
+  targetPointId?: string;
+  targetLabel?: string;
+};
+
+type CoverRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type CanvasPoint = {
+  x: number;
+  y: number;
+};
+
+type TargetLayout = {
+  x: number;
+  y: number;
+};
+
+const WASM_ROOT = "/mediapipe/wasm";
+const FACE_MODEL_PATH = "/models/mediapipe/face_landmarker.task";
+const FACE_TARGET_LAYOUT: Record<string, TargetLayout> = {
+  yintang: { x: 0.5, y: 0.3 },
+  jingming: { x: 0.47, y: 0.4 },
+  zanzhu: { x: 0.43, y: 0.32 },
+  sizhukong: { x: 0.68, y: 0.34 },
+  tongziliao: { x: 0.7, y: 0.42 },
+  sibai: { x: 0.58, y: 0.45 },
+  taiyang: { x: 0.78, y: 0.37 },
+  yingxiang: { x: 0.58, y: 0.54 },
+  quanliao: { x: 0.66, y: 0.52 },
+};
+const FACE_CONNECTION_GROUPS = [
+  FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
+  FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
+  FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
+  FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW,
+  FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW,
+  FaceLandmarker.FACE_LANDMARKS_LIPS,
+];
+
+export function FaceTrackingPanel({ targetPointId, targetLabel }: FaceTrackingPanelProps) {
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const landmarkerRef = useRef<FaceLandmarker | null>(null);
+  const frameRef = useRef(0);
+  const lastVideoTimeRef = useRef(-1);
+  const lastSummaryAtRef = useRef(0);
+  const [status, setStatus] = useState<TrackingStatus>("idle");
+  const [summary, setSummary] = useState<FaceSummary>(() => createIdleSummary(targetLabel));
+  const [error, setError] = useState("");
+
+  const isRunning = status === "running";
+  const canUseCamera = Boolean(navigator.mediaDevices?.getUserMedia);
+
+  useEffect(() => {
+    if (!isRunning) {
+      setSummary(createIdleSummary(targetLabel));
+    }
+  }, [isRunning, targetLabel]);
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+      landmarkerRef.current?.close();
+      landmarkerRef.current = null;
+    };
+  }, []);
+
+  async function ensureLandmarker() {
+    if (landmarkerRef.current) {
+      return landmarkerRef.current;
+    }
+
+    const vision = await FilesetResolver.forVisionTasks(WASM_ROOT);
+    const landmarker = await FaceLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: FACE_MODEL_PATH,
+        delegate: "CPU",
+      },
+      runningMode: "VIDEO",
+      numFaces: 1,
+      minFaceDetectionConfidence: 0.55,
+      minFacePresenceConfidence: 0.55,
+      minTrackingConfidence: 0.55,
+      outputFaceBlendshapes: false,
+      outputFacialTransformationMatrixes: false,
+    });
+    landmarkerRef.current = landmarker;
+    return landmarker;
+  }
+
+  async function startCamera() {
+    if (!canUseCamera) {
+      setStatus("error");
+      setError("這個瀏覽器不支援相機權限。");
+      return;
+    }
+
+    try {
+      setStatus("loading");
+      setError("");
+      const landmarker = await ensureLandmarker();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: "user",
+          width: { ideal: 960 },
+          height: { ideal: 720 },
+        },
+      });
+
+      streamRef.current = stream;
+      const video = videoRef.current;
+      if (!video) {
+        throw new Error("找不到相機預覽元件。");
+      }
+
+      video.srcObject = stream;
+      await video.play();
+      setStatus("running");
+      lastVideoTimeRef.current = -1;
+      runFaceLoop(landmarker);
+    } catch (errorValue) {
+      stopCamera();
+      setStatus("error");
+      setError(formatCameraError(errorValue));
+    }
+  }
+
+  function stopCamera() {
+    cancelAnimationFrame(frameRef.current);
+    frameRef.current = 0;
+
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    clearCanvas();
+    setSummary(createIdleSummary(targetLabel));
+    setStatus("idle");
+  }
+
+  function runFaceLoop(landmarker: FaceLandmarker) {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const preview = previewRef.current;
+    if (!video || !canvas || !preview) {
+      return;
+    }
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      syncCanvasSize(canvas, preview);
+
+      if (video.currentTime !== lastVideoTimeRef.current) {
+        const result = landmarker.detectForVideo(video, performance.now());
+        drawCameraFrame(ctx, canvas, video);
+        drawFace(ctx, canvas, video, result, targetPointId, targetLabel);
+        lastVideoTimeRef.current = video.currentTime;
+        updateSummary(result, canvas, video);
+      }
+    }
+
+    frameRef.current = requestAnimationFrame(() => runFaceLoop(landmarker));
+  }
+
+  function updateSummary(
+    result: FaceLandmarkerResult,
+    canvas: HTMLCanvasElement,
+    video: HTMLVideoElement,
+  ) {
+    const now = performance.now();
+    if (now - lastSummaryAtRef.current < 220) {
+      return;
+    }
+    lastSummaryAtRef.current = now;
+    setSummary(analyzeFace(result.faceLandmarks[0], canvas, video, targetLabel));
+  }
+
+  function clearCanvas() {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) {
+      return;
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  return (
+    <section
+      className="camera-panel camera-panel-face"
+      aria-label="臉部 AR 穴位定位"
+      data-testid="face-tracking-panel"
+    >
+      <div className="camera-panel-head">
+        <div>
+          <p className="eyebrow">MediaPipe Face</p>
+          <h2>{targetLabel ? "臉部 AR 穴位定位" : "臉部鏡頭定位"}</h2>
+        </div>
+        <div
+          className={`camera-state camera-state-${status}`}
+          data-testid="face-camera-state"
+        >
+          {status === "loading" ? (
+            <Loader2 size={14} strokeWidth={2} aria-hidden="true" />
+          ) : (
+            <LocateFixed size={14} strokeWidth={2} aria-hidden="true" />
+          )}
+          {statusLabel(status)}
+        </div>
+      </div>
+
+      {targetLabel ? (
+        <p className="camera-target">
+          目前要確認：<strong>{targetLabel}</strong>
+        </p>
+      ) : null}
+
+      <div className="camera-preview" ref={previewRef}>
+        <video
+          className="camera-source"
+          ref={videoRef}
+          muted
+          playsInline
+          aria-label="臉部相機來源"
+        />
+        <canvas ref={canvasRef} aria-hidden="true" />
+        {!isRunning ? (
+          <div className="camera-placeholder">
+            <Camera size={30} strokeWidth={1.6} aria-hidden="true" />
+            <span>相機尚未開啟</span>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="pose-readout">
+        <strong>{summary.instruction}</strong>
+        <span>
+          臉部點 {summary.visibleCount}/478 · 臉部覆蓋{" "}
+          {Math.round(summary.faceCoverage * 100)}% · 偏移{" "}
+          {Math.abs(summary.centerOffset).toFixed(1)}%
+        </span>
+      </div>
+
+      {error ? <p className="camera-error">{error}</p> : null}
+
+      <div className="camera-actions">
+        <button
+          className="primary-action"
+          type="button"
+          onClick={isRunning ? stopCamera : startCamera}
+          disabled={status === "loading"}
+          data-testid="face-camera-toggle"
+        >
+          {isRunning ? (
+            <VideoOff size={17} strokeWidth={2} aria-hidden="true" />
+          ) : (
+            <Camera size={17} strokeWidth={2} aria-hidden="true" />
+          )}
+          {isRunning ? "關閉鏡頭" : "開啟鏡頭"}
+        </button>
+      </div>
+
+      <p className="privacy-note">
+        <ShieldCheck size={14} strokeWidth={1.9} aria-hidden="true" />
+        目前影像只在瀏覽器本機進行臉部定位，不會上傳。這版先以臉框比例標示穴位區域，精準點位後續會接穴位資料表與校正寸距。
+      </p>
+    </section>
+  );
+}
+
+function createIdleSummary(targetLabel?: string): FaceSummary {
+  return {
+    visibleCount: 0,
+    instruction: targetLabel
+      ? `開啟鏡頭後，請讓 ${targetLabel} 附近清楚入鏡`
+      : "開啟鏡頭後，請讓臉部正面進入畫面",
+    faceCoverage: 0,
+    centerOffset: 0,
+  };
+}
+
+function statusLabel(status: TrackingStatus) {
+  if (status === "loading") {
+    return "載入中";
+  }
+  if (status === "running") {
+    return "定位中";
+  }
+  if (status === "error") {
+    return "需處理";
+  }
+  return "待啟動";
+}
+
+function formatCameraError(errorValue: unknown) {
+  if (!(errorValue instanceof Error)) {
+    return "相機啟動失敗。";
+  }
+
+  if (errorValue.name === "NotAllowedError" || errorValue.message.includes("Permission")) {
+    return "相機權限已被拒絕。請在瀏覽器網址列的網站權限中允許相機後再試一次。";
+  }
+
+  if (errorValue.name === "NotFoundError") {
+    return "找不到可用的相機裝置。";
+  }
+
+  return errorValue.message || "相機啟動失敗。";
+}
+
+function syncCanvasSize(canvas: HTMLCanvasElement, preview: HTMLDivElement) {
+  const rect = preview.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
+
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+}
+
+function drawCameraFrame(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  video: HTMLVideoElement,
+) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const cover = getCoverRect(canvas, video);
+
+  ctx.save();
+  ctx.translate(cover.x + cover.width, cover.y);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, 0, 0, cover.width, cover.height);
+  ctx.restore();
+}
+
+function drawFace(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  video: HTMLVideoElement,
+  result: FaceLandmarkerResult,
+  targetPointId?: string,
+  targetLabel?: string,
+) {
+  const landmarks = result.faceLandmarks[0];
+  if (!landmarks) {
+    return;
+  }
+
+  const cover = getCoverRect(canvas, video);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(47, 111, 96, 0.72)";
+  ctx.lineWidth = 2.5;
+
+  FACE_CONNECTION_GROUPS.forEach((connections) => {
+    connections.forEach((connection) => {
+      const start = landmarks[connection.start];
+      const end = landmarks[connection.end];
+      if (!start || !end) {
+        return;
+      }
+
+      const startPoint = landmarkToCanvas(start, cover);
+      const endPoint = landmarkToCanvas(end, cover);
+      ctx.beginPath();
+      ctx.moveTo(startPoint.x, startPoint.y);
+      ctx.lineTo(endPoint.x, endPoint.y);
+      ctx.stroke();
+    });
+  });
+
+  const target = targetPointId ? getTargetPoint(landmarks, cover, targetPointId) : undefined;
+  if (target) {
+    drawTargetMarker(ctx, target, targetLabel);
+  }
+}
+
+function drawTargetMarker(
+  ctx: CanvasRenderingContext2D,
+  target: CanvasPoint,
+  targetLabel?: string,
+) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(target.x, target.y, 17, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(247, 247, 244, 0.62)";
+  ctx.fill();
+  ctx.strokeStyle = "#111412";
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(target.x, target.y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = "#2f6f60";
+  ctx.fill();
+
+  if (targetLabel) {
+    ctx.font = "600 14px system-ui, sans-serif";
+    ctx.textBaseline = "middle";
+    const label = targetLabel.split(" - ")[0] ?? targetLabel;
+    const width = ctx.measureText(label).width + 18;
+    const labelX = target.x + 23;
+    const labelY = target.y - 22;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.82)";
+    roundRect(ctx, labelX, labelY - 15, width, 30, 8);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(18, 20, 17, 0.18)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = "#111412";
+    ctx.fillText(label, labelX + 9, labelY);
+  }
+
+  ctx.restore();
+}
+
+function analyzeFace(
+  landmarks: NormalizedLandmark[] | undefined,
+  canvas: HTMLCanvasElement,
+  video: HTMLVideoElement,
+  targetLabel?: string,
+): FaceSummary {
+  if (!landmarks?.length) {
+    return {
+      ...createIdleSummary(targetLabel),
+      instruction: "請讓臉部進入畫面",
+    };
+  }
+
+  const cover = getCoverRect(canvas, video);
+  const box = getCanvasLandmarkBox(landmarks, cover);
+  const faceCoverage = clamp(Math.max(box.width / canvas.width, box.height / canvas.height), 0, 1);
+  const centerOffset = ((box.x + box.width / 2 - canvas.width / 2) / canvas.width) * 100;
+
+  let instruction = targetLabel
+    ? `${targetLabel} 的臉部區域已進入畫面`
+    : "臉部定位完成，可作為穴位 AR 指引";
+
+  if (Math.abs(centerOffset) > 11) {
+    instruction = "請把臉移到畫面中央";
+  } else if (faceCoverage < 0.32) {
+    instruction = "可以稍微靠近鏡頭";
+  } else if (faceCoverage > 0.88) {
+    instruction = "請稍微退後，避免臉部超出畫面";
+  }
+
+  return {
+    visibleCount: landmarks.length,
+    instruction,
+    faceCoverage,
+    centerOffset,
+  };
+}
+
+function getTargetPoint(
+  landmarks: NormalizedLandmark[],
+  cover: CoverRect,
+  targetPointId: string,
+) {
+  const layout = FACE_TARGET_LAYOUT[targetPointId];
+  if (!layout) {
+    return undefined;
+  }
+
+  const box = getCanvasLandmarkBox(landmarks, cover);
+  return {
+    x: box.x + box.width * layout.x,
+    y: box.y + box.height * layout.y,
+  };
+}
+
+function getCanvasLandmarkBox(landmarks: NormalizedLandmark[], cover: CoverRect) {
+  const points = landmarks.map((landmark) => landmarkToCanvas(landmark, cover));
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  };
+}
+
+function getCoverRect(canvas: HTMLCanvasElement, video: HTMLVideoElement): CoverRect {
+  const videoWidth = video.videoWidth || canvas.width;
+  const videoHeight = video.videoHeight || canvas.height;
+  const scale = Math.max(canvas.width / videoWidth, canvas.height / videoHeight);
+  const width = videoWidth * scale;
+  const height = videoHeight * scale;
+
+  return {
+    x: (canvas.width - width) / 2,
+    y: (canvas.height - height) / 2,
+    width,
+    height,
+  };
+}
+
+function landmarkToCanvas(landmark: NormalizedLandmark, cover: CoverRect) {
+  return {
+    x: cover.x + (1 - landmark.x) * cover.width,
+    y: cover.y + landmark.y * cover.height,
+  };
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}

@@ -1,0 +1,11 @@
+Model Information:
+* title:	human head by sculptgl
+* source:	https://sketchfab.com/3d-models/human-head-by-sculptgl-7f30d2b9f2394edab07b527dcdc993d8
+* author:	Payzero (https://sketchfab.com/master16finearts)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "human head by sculptgl" (https://sketchfab.com/3d-models/human-head-by-sculptgl-7f30d2b9f2394edab07b527dcdc993d8) by Payzero (https://sketchfab.com/master16finearts) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

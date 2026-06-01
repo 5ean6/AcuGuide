@@ -1,0 +1,200 @@
+{
+  "accessors": [
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 4944,
+      "max": [
+        0.7122749090194702,
+        0.275922954082489,
+        3.0502984523773193
+      ],
+      "min": [
+        -0.7122012972831726,
+        -0.28161388635635376,
+        -0.0005541160353459418
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 59328,
+      "componentType": 5126,
+      "count": 4944,
+      "max": [
+        0.9992120265960693,
+        0.9999988079071045,
+        0.9998968839645386
+      ],
+      "min": [
+        -0.999529242515564,
+        -0.9998208284378052,
+        -0.9998215436935425
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 0,
+      "componentType": 5125,
+      "count": 29652,
+      "type": "SCALAR"
+    }
+  ],
+  "asset": {
+    "extras": {
+      "author": "aaron.kalvin (https://sketchfab.com/aaron.kalvin)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/human-03a70758739544b3aa705c13af3872b1",
+      "title": "Human"
+    },
+    "generator": "Sketchfab-12.67.0",
+    "version": "2.0"
+  },
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 118608,
+      "name": "floatBufferViews",
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteLength": 118656,
+      "byteOffset": 118608,
+      "byteStride": 12,
+      "name": "floatBufferViews",
+      "target": 34962
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 237264,
+      "uri": "scene.bin"
+    }
+  ],
+  "materials": [
+    {
+      "doubleSided": true,
+      "name": "Default_OBJ.001",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.8,
+          0.8,
+          0.8,
+          1.0
+        ],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 0.8211145618000169
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "Realistic_White_Male_Low_Poly_Default OBJ.001_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 1,
+            "POSITION": 0
+          },
+          "indices": 2,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "children": [
+        1
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        2.220446049250313e-16,
+        -1.0,
+        0.0,
+        0.0,
+        1.0,
+        2.220446049250313e-16,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "Sketchfab_model"
+    },
+    {
+      "children": [
+        2
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        -1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "51c8675a02c445f1a14871d03cfed1d0.fbx"
+    },
+    {
+      "children": [
+        3
+      ],
+      "name": "RootNode"
+    },
+    {
+      "children": [
+        4
+      ],
+      "matrix": [
+        -58.36110747780381,
+        -6.559799226165883e-15,
+        -9.223222704511915,
+        0.0,
+        -9.223222704511741,
+        1.150435577534649e-05,
+        58.3611074778027,
+        0.0,
+        1.795827759691077e-06,
+        59.08541870117076,
+        -1.1363327189686687e-05,
+        0.0,
+        22.049226760864258,
+        1.4901161193847656e-06,
+        164.64178466796875,
+        1.0
+      ],
+      "name": "Realistic_White_Male_Low_Poly"
+    },
+    {
+      "mesh": 0,
+      "name": "Realistic_White_Male_Low_Poly_Default OBJ.001_0"
+    }
+  ],
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Sketchfab_Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ]
+}
