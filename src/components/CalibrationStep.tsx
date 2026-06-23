@@ -401,14 +401,14 @@ function formatCameraError(errorValue: unknown) {
   }
 
   if (errorValue.name === "NotAllowedError" || errorValue.message.includes("Permission")) {
-    return "相機權限已被拒絕。請在瀏覽器網址列允許相機後再試一次。";
+    return "相機權限已被拒絕，已切換為手動比例尺備援。仍可用滑桿完成校正。";
   }
 
   if (errorValue.name === "NotFoundError") {
-    return "找不到可用的相機裝置。";
+    return "找不到可用的相機裝置，已切換為手動比例尺備援。";
   }
 
-  return errorValue.message || "手部校正鏡頭啟動失敗。";
+  return errorValue.message || "手部校正鏡頭啟動失敗，已切換為手動比例尺備援。";
 }
 
 function syncCanvasSize(canvas: HTMLCanvasElement, preview: HTMLDivElement) {

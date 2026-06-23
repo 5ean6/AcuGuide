@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   FaceLandmarker,
   FilesetResolver,
+  HandLandmarker,
   type FaceLandmarkerResult,
   type NormalizedLandmark,
 } from "@mediapipe/tasks-vision";
@@ -25,6 +26,12 @@ type FaceSummary = {
 type FaceTrackingPanelProps = {
   targetPointId?: string;
   targetLabel?: string;
+  onTargetContactChange?: (contact: boolean) => void;
+};
+
+type FaceAndHandLandmarkers = {
+  face: FaceLandmarker;
+  hands: HandLandmarker;
 };
 
 type CoverRect = {
@@ -46,6 +53,7 @@ type TargetLayout = {
 
 const WASM_ROOT = "/mediapipe/wasm";
 const FACE_MODEL_PATH = "/models/mediapipe/face_landmarker.task";
+const HAND_MODEL_PATH = "/models/mediapipe/hand_landmarker.task";
 const FACE_TARGET_LAYOUT: Record<string, TargetLayout> = {
   yintang: { x: 0.5, y: 0.3 },
   jingming: { x: 0.47, y: 0.4 },
@@ -66,12 +74,19 @@ const FACE_CONNECTION_GROUPS = [
   FaceLandmarker.FACE_LANDMARKS_LIPS,
 ];
 
-export function FaceTrackingPanel({ targetPointId, targetLabel }: FaceTrackingPanelProps) {
+export function FaceTrackingPanel({
+  targetPointId,
+  targetLabel,
+  onTargetContactChange,
+}: FaceTrackingPanelProps) {
   const previewRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const landmarkerRef = useRef<FaceLandmarker | null>(null);
+  const landmarkerRef = useRef<FaceAndHandLandmarkers | null>(null);
+  const targetRef = useRef({ targetPointId, targetLabel });
+  const contactRef = useRef(false);
+  const onTargetContactChangeRef = useRef(onTargetContactChange);
   const frameRef = useRef(0);
   const lastVideoTimeRef = useRef(-1);
   const lastSummaryAtRef = useRef(0);
@@ -83,6 +98,15 @@ export function FaceTrackingPanel({ targetPointId, targetLabel }: FaceTrackingPa
   const canUseCamera = Boolean(navigator.mediaDevices?.getUserMedia);
 
   useEffect(() => {
+    targetRef.current = { targetPointId, targetLabel };
+    updateTargetContact(false);
+  }, [targetLabel, targetPointId]);
+
+  useEffect(() => {
+    onTargetContactChangeRef.current = onTargetContactChange;
+  }, [onTargetContactChange]);
+
+  useEffect(() => {
     if (!isRunning) {
       setSummary(createIdleSummary(targetLabel));
     }
@@ -91,7 +115,8 @@ export function FaceTrackingPanel({ targetPointId, targetLabel }: FaceTrackingPa
   useEffect(() => {
     return () => {
       stopCamera();
-      landmarkerRef.current?.close();
+      landmarkerRef.current?.face.close();
+      landmarkerRef.current?.hands.close();
       landmarkerRef.current = null;
     };
   }, []);
@@ -102,21 +127,35 @@ export function FaceTrackingPanel({ targetPointId, targetLabel }: FaceTrackingPa
     }
 
     const vision = await FilesetResolver.forVisionTasks(WASM_ROOT);
-    const landmarker = await FaceLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: FACE_MODEL_PATH,
-        delegate: "CPU",
-      },
-      runningMode: "VIDEO",
-      numFaces: 1,
-      minFaceDetectionConfidence: 0.55,
-      minFacePresenceConfidence: 0.55,
-      minTrackingConfidence: 0.55,
-      outputFaceBlendshapes: false,
-      outputFacialTransformationMatrixes: false,
-    });
-    landmarkerRef.current = landmarker;
-    return landmarker;
+    const [face, hands] = await Promise.all([
+      FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: FACE_MODEL_PATH,
+          delegate: "CPU",
+        },
+        runningMode: "VIDEO",
+        numFaces: 1,
+        minFaceDetectionConfidence: 0.55,
+        minFacePresenceConfidence: 0.55,
+        minTrackingConfidence: 0.55,
+        outputFaceBlendshapes: false,
+        outputFacialTransformationMatrixes: false,
+      }),
+      HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: HAND_MODEL_PATH,
+          delegate: "CPU",
+        },
+        runningMode: "VIDEO",
+        numHands: 2,
+        minHandDetectionConfidence: 0.55,
+        minHandPresenceConfidence: 0.55,
+        minTrackingConfidence: 0.55,
+      }),
+    ]);
+    const landmarkers = { face, hands };
+    landmarkerRef.current = landmarkers;
+    return landmarkers;
   }
 
   async function startCamera() {
@@ -169,11 +208,12 @@ export function FaceTrackingPanel({ targetPointId, targetLabel }: FaceTrackingPa
     }
 
     clearCanvas();
-    setSummary(createIdleSummary(targetLabel));
+    updateTargetContact(false);
+    setSummary(createIdleSummary(targetRef.current.targetLabel));
     setStatus("idle");
   }
 
-  function runFaceLoop(landmarker: FaceLandmarker) {
+  function runFaceLoop(landmarkers: FaceAndHandLandmarkers) {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const preview = previewRef.current;
@@ -190,15 +230,38 @@ export function FaceTrackingPanel({ targetPointId, targetLabel }: FaceTrackingPa
       syncCanvasSize(canvas, preview);
 
       if (video.currentTime !== lastVideoTimeRef.current) {
-        const result = landmarker.detectForVideo(video, performance.now());
+        const timestamp = performance.now();
+        const result = landmarkers.face.detectForVideo(video, timestamp);
+        const handResult = landmarkers.hands.detectForVideo(video, timestamp);
         drawCameraFrame(ctx, canvas, video);
-        drawFace(ctx, canvas, video, result, targetPointId, targetLabel);
+        const currentTarget = targetRef.current;
+        const cover = getCoverRect(canvas, video);
+        const target = currentTarget.targetPointId
+          ? getTargetPoint(result.faceLandmarks[0] ?? [], cover, currentTarget.targetPointId)
+          : undefined;
+        const targetContact = detectFaceTargetContact(
+          target,
+          handResult.landmarks,
+          cover,
+          contactRef.current,
+        );
+        updateTargetContact(targetContact);
+        drawFace(
+          ctx,
+          canvas,
+          video,
+          result,
+          currentTarget.targetPointId,
+          currentTarget.targetLabel,
+          handResult.landmarks,
+          targetContact,
+        );
         lastVideoTimeRef.current = video.currentTime;
         updateSummary(result, canvas, video);
       }
     }
 
-    frameRef.current = requestAnimationFrame(() => runFaceLoop(landmarker));
+    frameRef.current = requestAnimationFrame(() => runFaceLoop(landmarkers));
   }
 
   function updateSummary(
@@ -211,7 +274,9 @@ export function FaceTrackingPanel({ targetPointId, targetLabel }: FaceTrackingPa
       return;
     }
     lastSummaryAtRef.current = now;
-    setSummary(analyzeFace(result.faceLandmarks[0], canvas, video, targetLabel));
+    setSummary(
+      analyzeFace(result.faceLandmarks[0], canvas, video, targetRef.current.targetLabel),
+    );
   }
 
   function clearCanvas() {
@@ -223,11 +288,20 @@ export function FaceTrackingPanel({ targetPointId, targetLabel }: FaceTrackingPa
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
+  function updateTargetContact(contact: boolean) {
+    if (contactRef.current === contact) {
+      return;
+    }
+    contactRef.current = contact;
+    onTargetContactChangeRef.current?.(contact);
+  }
+
   return (
     <section
       className="camera-panel camera-panel-face"
       aria-label="臉部 AR 穴位定位"
       data-testid="face-tracking-panel"
+      data-target-point-id={targetPointId ?? ""}
     >
       <div className="camera-panel-head">
         <div>
@@ -336,14 +410,14 @@ function formatCameraError(errorValue: unknown) {
   }
 
   if (errorValue.name === "NotAllowedError" || errorValue.message.includes("Permission")) {
-    return "相機權限已被拒絕。請在瀏覽器網址列的網站權限中允許相機後再試一次。";
+    return "相機權限已被拒絕，已切換為 3D 與文字備援 Demo。可依右側模型完成流程。";
   }
 
   if (errorValue.name === "NotFoundError") {
-    return "找不到可用的相機裝置。";
+    return "找不到可用的相機裝置，已切換為 3D 與文字備援 Demo。";
   }
 
-  return errorValue.message || "相機啟動失敗。";
+  return errorValue.message || "相機啟動失敗，已切換為 3D 與文字備援 Demo。";
 }
 
 function syncCanvasSize(canvas: HTMLCanvasElement, preview: HTMLDivElement) {
@@ -380,6 +454,8 @@ function drawFace(
   result: FaceLandmarkerResult,
   targetPointId?: string,
   targetLabel?: string,
+  handLandmarks: NormalizedLandmark[][] = [],
+  targetContact = false,
 ) {
   const landmarks = result.faceLandmarks[0];
   if (!landmarks) {
@@ -409,29 +485,93 @@ function drawFace(
     });
   });
 
+  handLandmarks.forEach((hand) => drawFaceHandLandmarks(ctx, hand, cover));
+
   const target = targetPointId ? getTargetPoint(landmarks, cover, targetPointId) : undefined;
   if (target) {
-    drawTargetMarker(ctx, target, targetLabel);
+    if (targetContact) {
+      ctx.save();
+      ctx.fillStyle = "rgba(10, 18, 14, 0.14)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
+    drawTargetMarker(ctx, target, targetLabel, targetContact);
   }
+}
+
+function drawFaceHandLandmarks(
+  ctx: CanvasRenderingContext2D,
+  landmarks: NormalizedLandmark[],
+  cover: CoverRect,
+) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(18, 20, 17, 0.82)";
+  ctx.lineWidth = 2.2;
+  HandLandmarker.HAND_CONNECTIONS.forEach((connection) => {
+    const start = landmarks[connection.start];
+    const end = landmarks[connection.end];
+    if (!start || !end) {
+      return;
+    }
+    const startPoint = landmarkToCanvas(start, cover);
+    const endPoint = landmarkToCanvas(end, cover);
+    ctx.beginPath();
+    ctx.moveTo(startPoint.x, startPoint.y);
+    ctx.lineTo(endPoint.x, endPoint.y);
+    ctx.stroke();
+  });
+  landmarks.forEach((landmark, index) => {
+    const point = landmarkToCanvas(landmark, cover);
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, index === 8 ? 5 : 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = index === 8 ? "#2f6f60" : "#ffffff";
+    ctx.fill();
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function detectFaceTargetContact(
+  target: CanvasPoint | undefined,
+  hands: NormalizedLandmark[][],
+  cover: CoverRect,
+  wasContacting: boolean,
+) {
+  if (!target) {
+    return false;
+  }
+
+  const fingertips = hands
+    .flatMap((hand) => [hand[8], hand[12]])
+    .filter((landmark): landmark is NormalizedLandmark => Boolean(landmark))
+    .map((landmark) => landmarkToCanvas(landmark, cover));
+  const baseThreshold = Math.max(24, Math.min(cover.width, cover.height) * 0.045);
+  const threshold = wasContacting ? baseThreshold * 1.35 : baseThreshold;
+
+  return fingertips.some(
+    (fingertip) => Math.hypot(fingertip.x - target.x, fingertip.y - target.y) <= threshold,
+  );
 }
 
 function drawTargetMarker(
   ctx: CanvasRenderingContext2D,
   target: CanvasPoint,
   targetLabel?: string,
+  contact = false,
 ) {
   ctx.save();
+  const pulse = contact ? 4 + Math.sin(performance.now() / 110) * 3 : 0;
   ctx.beginPath();
-  ctx.arc(target.x, target.y, 17, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(247, 247, 244, 0.62)";
+  ctx.arc(target.x, target.y, 17 + pulse, 0, Math.PI * 2);
+  ctx.fillStyle = contact ? "rgba(47, 111, 96, 0.82)" : "rgba(247, 247, 244, 0.62)";
   ctx.fill();
-  ctx.strokeStyle = "#111412";
-  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = contact ? "#ffffff" : "#111412";
+  ctx.lineWidth = contact ? 3.5 : 2.5;
   ctx.stroke();
 
   ctx.beginPath();
   ctx.arc(target.x, target.y, 5, 0, Math.PI * 2);
-  ctx.fillStyle = "#2f6f60";
+  ctx.fillStyle = contact ? "#ffffff" : "#2f6f60";
   ctx.fill();
 
   if (targetLabel) {

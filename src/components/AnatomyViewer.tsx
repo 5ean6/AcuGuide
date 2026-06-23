@@ -1,14 +1,18 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import type { FeatureModeId, PointMatch } from "../types";
+import { createBodyRegionPick } from "../lib/bodyRegions";
+import type { BodyRegionPick, FeatureModeId, PointMatch } from "../types";
 
 type AnatomyViewerProps = {
   mode: FeatureModeId;
   points: PointMatch[];
   activePointId?: string;
   focusPointId?: string;
+  autoRotate?: boolean;
+  regionSelectionEnabled?: boolean;
   onPointSelect?: (id: string) => void;
+  onBodyRegionSelect?: (region: BodyRegionPick) => void;
 };
 
 type DragState = {
@@ -90,11 +94,21 @@ const modelConfigs: Record<FeatureModeId, ModelConfig> = {
     targetHeight: 3.22,
     centerY: -0.12,
   },
+  other: {
+    path: "/models/human/scene.gltf",
+    title: "Human",
+    author: "aaron.kalvin",
+    source: "https://sketchfab.com/3d-models/human-03a70758739544b3aa705c13af3872b1",
+    license: "CC BY 4.0",
+    targetHeight: 3.22,
+    centerY: -0.12,
+  },
 };
 const initialModelRotation: Record<FeatureModeId, { x: number; y: number }> = {
   face: { x: 0, y: -0.28 },
   body: { x: 0, y: Math.PI + 0.2 },
   wellness: { x: 0, y: Math.PI + 0.2 },
+  other: { x: 0, y: Math.PI + 0.2 },
 };
 const rememberedRotation = new Map<FeatureModeId, { x: number; y: number }>();
 
@@ -105,17 +119,24 @@ export function AnatomyViewer({
   points,
   activePointId,
   focusPointId,
+  autoRotate = true,
+  regionSelectionEnabled = false,
   onPointSelect,
+  onBodyRegionSelect,
 }: AnatomyViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onPointSelectRef = useRef(onPointSelect);
+  const onBodyRegionSelectRef = useRef(onBodyRegionSelect);
+  const regionSelectionEnabledRef = useRef(regionSelectionEnabled);
   const viewerStateRef = useRef<ViewerState | null>(null);
   const modelConfig = modelConfigs[mode];
 
   useEffect(() => {
     onPointSelectRef.current = onPointSelect;
-  }, [onPointSelect]);
+    onBodyRegionSelectRef.current = onBodyRegionSelect;
+    regionSelectionEnabledRef.current = regionSelectionEnabled;
+  }, [onBodyRegionSelect, onPointSelect, regionSelectionEnabled]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -249,7 +270,26 @@ export function AnatomyViewer({
       const pointId = hits[0]?.object.userData.pointId as string | undefined;
       if (pointId) {
         onPointSelectRef.current?.(pointId);
+        return;
       }
+
+      if (!regionSelectionEnabledRef.current || !viewerState.model) {
+        return;
+      }
+
+      const bodyHit = raycaster.intersectObject(viewerState.model, true)[0];
+      if (!bodyHit) {
+        return;
+      }
+
+      const localPosition = modelRoot.worldToLocal(bodyHit.point.clone());
+      onBodyRegionSelectRef.current?.(
+        createBodyRegionPick({
+          x: localPosition.x,
+          y: localPosition.y,
+          z: localPosition.z,
+        }),
+      );
     }
 
     function handlePointerDown(event: PointerEvent) {
@@ -311,7 +351,7 @@ export function AnatomyViewer({
 
       if (!drag.active && focusRecord) {
         rotateModelTowardAnchor(modelRoot, focusRecord.anchor, mode);
-      } else if (!drag.active) {
+      } else if (!drag.active && autoRotate) {
         modelRoot.rotation.y += isFaceMode ? 0.0013 : 0.001;
       }
 
@@ -342,7 +382,7 @@ export function AnatomyViewer({
       disposeObject(scene);
       renderer.dispose();
     };
-  }, [mode, modelConfig]);
+  }, [autoRotate, mode, modelConfig]);
 
   useEffect(() => {
     const viewerState = viewerStateRef.current;
@@ -373,13 +413,16 @@ export function AnatomyViewer({
   }, [activePointId, focusPointId, mode, points]);
 
   return (
-    <div className="anatomy-viewer" ref={containerRef}>
+    <div
+      className={`anatomy-viewer ${regionSelectionEnabled ? "is-region-picker" : ""}`}
+      ref={containerRef}
+    >
       <canvas
         ref={canvasRef}
         aria-label={mode === "face" ? "臉部 3D 模型" : "全身 3D 模型"}
       />
       <div className="viewer-hint" aria-hidden="true">
-        拖曳旋轉 / 點選標記
+        {regionSelectionEnabled ? "拖曳旋轉 / 點身體選部位" : "拖曳旋轉 / 點選標記"}
       </div>
       <a
         className="model-credit"
@@ -406,6 +449,8 @@ function syncMarkerObjects(
   markerGroup.children.forEach((child) => {
     if (child instanceof THREE.Mesh) {
       child.geometry.dispose();
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach((material) => material.dispose());
     }
   });
   markerGroup.clear();

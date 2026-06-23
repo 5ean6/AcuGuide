@@ -37,8 +37,17 @@ input {
   font: inherit;
 }
 
+textarea {
+  font: inherit;
+}
+
 button {
   cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 button:focus-visible,
@@ -57,6 +66,10 @@ input:focus-visible {
 }
 
 .app-guide {
+  padding-bottom: 32px;
+}
+
+.app-complete {
   padding-bottom: 32px;
 }
 
@@ -151,12 +164,62 @@ input:focus-visible {
 
 .guide-ar-surface {
   display: flex;
+  flex-direction: column;
+  gap: 12px;
   min-height: calc(100vh - 184px);
+}
+
+.ar-point-switcher {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.ar-point-switcher button {
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.ar-point-switcher div,
+.ar-point-switcher span,
+.ar-point-switcher strong {
+  display: block;
+  min-width: 0;
+}
+
+.ar-point-switcher div {
+  text-align: center;
+}
+
+.ar-point-switcher span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ar-point-switcher strong {
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .control-surface h1,
 .panel-head h1,
-.calibration-copy h1 {
+.calibration-copy h1,
+.complete-summary h1 {
   margin: 10px 0 22px;
   font-size: clamp(30px, 4vw, 48px);
   line-height: 1.04;
@@ -171,8 +234,30 @@ input:focus-visible {
 .feature-grid {
   display: grid;
   flex: 1;
-  grid-template-rows: repeat(3, minmax(138px, 1fr));
+  grid-template-rows: repeat(4, minmax(108px, 1fr));
   gap: 12px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.demo-boundary {
+  display: grid;
+  gap: 5px;
+  margin: -8px 0 18px;
+  padding: 11px 12px;
+  border: 1px solid rgba(47, 111, 96, 0.24);
+  border-radius: 8px;
+  background: rgba(220, 236, 229, 0.58);
+}
+
+.demo-boundary strong {
+  font-size: 13px;
+}
+
+.demo-boundary span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .feature-option {
@@ -549,11 +634,37 @@ input:focus-visible {
   min-height: 320px;
 }
 
+.viewer-loading,
+.module-loading {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.viewer-loading {
+  position: absolute;
+  inset: 0;
+}
+
+.module-loading {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
 .anatomy-viewer canvas {
   display: block;
   width: 100%;
   height: 100%;
   touch-action: none;
+}
+
+.anatomy-viewer.is-region-picker canvas {
+  cursor: crosshair;
 }
 
 .viewer-hint {
@@ -566,6 +677,17 @@ input:focus-visible {
   color: var(--muted);
   background: rgba(255, 255, 255, 0.78);
   font-size: 12px;
+}
+
+.anatomy-viewer.is-region-picker .viewer-hint {
+  border-color: rgba(47, 111, 96, 0.28);
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.86);
+  font-weight: 800;
+}
+
+.model-surface.is-picking-body-region .model-decision-panel {
+  pointer-events: none;
 }
 
 .model-credit {
@@ -600,6 +722,48 @@ input:focus-visible {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.76);
   backdrop-filter: blur(16px);
+}
+
+.safety-alert {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(141, 75, 53, 0.32);
+  border-radius: 8px;
+  color: var(--ink);
+  background: rgba(255, 247, 241, 0.9);
+  backdrop-filter: blur(16px);
+}
+
+.safety-alert-caution {
+  border-color: rgba(47, 111, 96, 0.28);
+  background: rgba(220, 236, 229, 0.86);
+}
+
+.safety-alert-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.safety-alert-caution .safety-alert-head {
+  color: var(--accent);
+}
+
+.safety-alert strong {
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.safety-alert p,
+.safety-alert small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .recommendation-panel-floating {
@@ -742,6 +906,120 @@ input:focus-visible {
   margin: 0 auto;
   gap: 24px;
   align-items: center;
+}
+
+.complete-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 420px);
+  width: min(1080px, 100%);
+  min-height: calc(100vh - 104px);
+  margin: 0 auto;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.complete-summary,
+.feedback-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: var(--shadow);
+}
+
+.complete-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid rgba(47, 111, 96, 0.24);
+  border-radius: 8px;
+  background: var(--accent-soft);
+}
+
+.complete-status strong,
+.complete-status span {
+  display: block;
+}
+
+.complete-status span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.complete-point-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.complete-point-list span {
+  min-height: 30px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.feedback-panel h2 {
+  margin: 6px 0 8px;
+  font-size: 26px;
+  letter-spacing: 0;
+}
+
+.rating-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.rating-button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  font-weight: 800;
+}
+
+.rating-button.is-selected {
+  border-color: var(--accent);
+  color: var(--surface);
+  background: var(--accent);
+}
+
+.feedback-note {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.feedback-note textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 108px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.feedback-state {
+  margin: 0;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .calibration-copy {
@@ -1047,11 +1325,13 @@ input:focus-visible {
   justify-content: center;
   min-width: 42px;
   min-height: 26px;
+  padding: 0 8px;
   border-radius: 999px;
   color: var(--surface);
   background: var(--ink);
   font-size: 12px;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .ar-anchor-card strong {
@@ -1096,6 +1376,248 @@ input:focus-visible {
 .active-point dd {
   margin: 0;
   line-height: 1.55;
+}
+
+.pressure-coach {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.pressure-coach.is-pressing {
+  border-color: rgba(47, 111, 96, 0.48);
+  background: rgba(220, 236, 229, 0.48);
+}
+
+.pressure-coach.is-complete {
+  border-color: var(--accent);
+}
+
+.pressure-coach-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pressure-coach-head span,
+.pressure-coach-head strong {
+  display: block;
+}
+
+.pressure-coach-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pressure-coach-head strong {
+  margin-top: 3px;
+  font-size: 16px;
+}
+
+.pressure-coach-head button {
+  display: inline-grid;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.pressure-coach-body {
+  display: grid;
+  grid-template-columns: 112px minmax(96px, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.pressure-timer {
+  position: relative;
+  display: grid;
+  width: 112px;
+  height: 112px;
+  place-content: center;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--accent) var(--press-progress),
+    rgba(216, 217, 209, 0.72) var(--press-progress)
+  );
+  isolation: isolate;
+  text-align: center;
+}
+
+.pressure-timer::before {
+  position: absolute;
+  z-index: -1;
+  inset: 7px;
+  border-radius: 50%;
+  background: var(--surface);
+  content: "";
+}
+
+.pressure-timer strong {
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.pressure-timer span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pressure-pulse {
+  position: absolute;
+  inset: 18px;
+  border: 2px solid rgba(47, 111, 96, 0.42);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.pressure-coach.is-pressing .pressure-pulse {
+  animation: pressure-pulse 1.15s ease-out infinite;
+}
+
+.motion-guide {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-width: 96px;
+  height: 112px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--accent);
+  background: rgba(247, 247, 244, 0.82);
+}
+
+.motion-track {
+  position: absolute;
+  width: 66px;
+  height: 66px;
+  border: 1px dashed rgba(47, 111, 96, 0.42);
+  border-radius: 50%;
+}
+
+.motion-press svg {
+  animation: motion-press 1.1s ease-in-out infinite;
+}
+
+.motion-circle svg {
+  animation: motion-circle 1.7s linear infinite;
+}
+
+.motion-outward svg {
+  animation: motion-outward 1.25s ease-in-out infinite;
+}
+
+.motion-down svg {
+  animation: motion-down 1.15s ease-in-out infinite;
+}
+
+.motion-up svg {
+  animation: motion-up 1.15s ease-in-out infinite;
+}
+
+.pressure-status {
+  min-height: 38px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pressure-coach.is-pressing .pressure-status,
+.pressure-coach.is-complete .pressure-status {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.pressure-hold-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  font-weight: 800;
+  touch-action: none;
+}
+
+.pressure-hold-button:active,
+.pressure-coach.is-pressing .pressure-hold-button {
+  color: var(--surface);
+  background: var(--ink);
+}
+
+@keyframes pressure-pulse {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.74);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.42);
+  }
+}
+
+@keyframes motion-press {
+  0%,
+  100% {
+    transform: scale(0.9);
+  }
+  50% {
+    transform: scale(1.18);
+  }
+}
+
+@keyframes motion-circle {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes motion-outward {
+  0%,
+  100% {
+    transform: scaleX(0.72);
+  }
+  50% {
+    transform: scaleX(1.35);
+  }
+}
+
+@keyframes motion-down {
+  0%,
+  100% {
+    transform: translateY(-13px);
+  }
+  50% {
+    transform: translateY(13px);
+  }
+}
+
+@keyframes motion-up {
+  0%,
+  100% {
+    transform: translateY(13px);
+  }
+  50% {
+    transform: translateY(-13px);
+  }
 }
 
 .point-list {
@@ -1164,7 +1686,8 @@ input:focus-visible {
 
   .select-layout,
   .guide-layout,
-  .calibration-view {
+  .calibration-view,
+  .complete-layout {
     grid-template-columns: 1fr;
   }
 
@@ -1215,7 +1738,7 @@ input:focus-visible {
   }
 
   .feature-option {
-    min-height: 154px;
+    min-height: 146px;
   }
 
   .feature-main {
@@ -1258,6 +1781,20 @@ input:focus-visible {
     bottom: 54px;
   }
 
+  .pressure-coach-body {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .pressure-timer {
+    width: 96px;
+    height: 96px;
+  }
+
+  .motion-guide {
+    height: 96px;
+  }
+
   .recommendation-panel-floating {
     top: auto;
     right: 14px;
@@ -1283,5 +1820,20 @@ input:focus-visible {
   .calibration-actions .primary-action,
   .panel-actions .ghost-action {
     width: 100%;
+  }
+
+  .panel-actions .primary-action {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

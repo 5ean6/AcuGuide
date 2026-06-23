@@ -1,4 +1,4 @@
-import { Check, HeartPulse, PersonStanding, ScanFace } from "lucide-react";
+import { Check, HeartPulse, LocateFixed, PersonStanding, ScanFace } from "lucide-react";
 import { guideGoals, featureModes } from "../data/acupoints";
 import type { FeatureModeId } from "../types";
 
@@ -37,7 +37,13 @@ export function FeatureSelector({
       {featureModes.map((mode) => {
         const selected = value === mode.id;
         const Icon =
-          mode.id === "face" ? ScanFace : mode.id === "body" ? PersonStanding : HeartPulse;
+          mode.id === "face"
+            ? ScanFace
+            : mode.id === "body"
+              ? PersonStanding
+              : mode.id === "wellness"
+                ? HeartPulse
+                : LocateFixed;
         const goals = guideGoals.filter((goal) => goal.mode === mode.id);
 
         return (

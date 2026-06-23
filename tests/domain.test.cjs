@@ -1,0 +1,152 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const { confidenceLabel } = require("../.tmp-tests/src/lib/confidence.js");
+const { nextDemoStage } = require("../.tmp-tests/src/lib/demoFlow.js");
+const {
+  FEEDBACK_STORAGE_KEY,
+  createFeedbackRecord,
+  loadFeedbackRecords,
+  saveFeedbackRecord,
+} = require("../.tmp-tests/src/lib/feedback.js");
+const { recommendAcupoints } = require("../.tmp-tests/src/lib/recommender.js");
+const {
+  applySafetyToRecommendation,
+  evaluateSafety,
+} = require("../.tmp-tests/src/lib/safety.js");
+const { createBodyRegionPick } = require("../.tmp-tests/src/lib/bodyRegions.js");
+const {
+  getPressMotion,
+  parsePressSeconds,
+  pressMotionLabel,
+} = require("../.tmp-tests/src/lib/pressGuidance.js");
+
+test("high-risk symptoms are blocked before normal recommendation", () => {
+  const recommendation = recommendAcupoints({
+    mode: "body",
+    query: "肩頸痠痛",
+  });
+  const assessment = evaluateSafety("突然胸痛 呼吸困難", recommendation.points);
+  const safeResult = applySafetyToRecommendation(recommendation, assessment);
+
+  assert.equal(assessment.severity, "block");
+  assert.equal(safeResult.points.length, 0);
+  assert.equal(safeResult.recommendation.engine.status, "safety_blocked");
+  assert.match(safeResult.recommendation.summary, /不提供一般穴位推薦/);
+});
+
+test("symptom matching returns expected shoulder and neck points", () => {
+  const result = recommendAcupoints({
+    mode: "body",
+    query: "肩頸痠痛",
+    fallbackGoalId: "body-shoulder-neck",
+  });
+  const ids = result.points.map((point) => point.id);
+
+  assert.ok(ids.includes("jianjing"));
+  assert.ok(ids.includes("fengchi"));
+  assert.ok(result.recommendation.confidence >= 0.48);
+});
+
+test("lower-back preset prioritizes lower-back point before remote supporting points", () => {
+  const result = recommendAcupoints({
+    mode: "body",
+    query: "腰背 下背 腰部 緊繃 腎俞 腎俞 腰部保養",
+    fallbackGoalId: "body-lower-back",
+  });
+
+  assert.equal(result.points[0].id, "shenshu");
+});
+
+test("other mode can recommend from a directly picked body region", () => {
+  const result = recommendAcupoints({
+    mode: "other",
+    query: "手腕痛 手肘緊繃 曲池 合谷 內關",
+    fallbackGoalId: "other-model-pick",
+  });
+  const ids = result.points.map((point) => point.id);
+
+  assert.ok(ids.includes("quchi"));
+  assert.ok(ids.includes("hegu"));
+  assert.ok(ids.includes("neiguan"));
+});
+
+test("body model coordinates classify torso clicks as stomach region", () => {
+  const pick = createBodyRegionPick({ x: 0.02, y: 0.02, z: -0.18 });
+
+  assert.equal(pick.id, "stomach");
+  assert.match(pick.query, /中脘/);
+});
+
+test("pressure guidance parses duration and massage direction", () => {
+  assert.equal(parsePressSeconds("15 秒 x 2"), 15);
+  assert.equal(getPressMotion("由穴位向外輕推"), "outward");
+  assert.equal(getPressMotion("順時針畫圓按揉"), "circle");
+  assert.equal(pressMotionLabel("down"), "向下輕推");
+});
+
+
+test("pregnancy caution removes contraindicated candidate points", () => {
+  const result = recommendAcupoints({
+    mode: "body",
+    query: "我懷孕，肩頸痠痛",
+    fallbackGoalId: "body-shoulder-neck",
+  });
+  const assessment = evaluateSafety("我懷孕，肩頸痠痛", result.points);
+  const safeResult = applySafetyToRecommendation(result, assessment);
+
+  assert.equal(assessment.severity, "caution");
+  assert.ok(assessment.removedPointNames.includes("肩井"));
+  assert.ok(safeResult.points.every((point) => !point.caution.includes("孕")));
+});
+
+test("A-D confidence labels are explicit text, not color-only", () => {
+  assert.match(confidenceLabel("A"), /即時追蹤/);
+  assert.match(confidenceLabel("B"), /關鍵點/);
+  assert.match(confidenceLabel("C"), /校正/);
+  assert.match(confidenceLabel("D"), /3D/);
+});
+
+test("demo flow stage transitions cover recommendation, calibration, completion, and restart", () => {
+  assert.equal(nextDemoStage("select", "confirmRecommendation"), "guide");
+  assert.equal(nextDemoStage("guide", "requestCalibration"), "calibrate");
+  assert.equal(nextDemoStage("calibrate", "finishCalibration"), "guide");
+  assert.equal(nextDemoStage("guide", "completeGuide"), "complete");
+  assert.equal(nextDemoStage("complete", "restart"), "select");
+});
+
+test("feedback records are stored in localStorage-compatible storage", () => {
+  const storage = createMemoryStorage();
+  const wellness = recommendAcupoints({
+    mode: "wellness",
+    query: "脹氣腹脹",
+    fallbackGoalId: "wellness-bloating",
+  });
+  const record = createFeedbackRecord({
+    mode: "wellness",
+    query: "脹氣腹脹",
+    points: wellness.points,
+    rating: 6,
+    note: "  定位清楚  ",
+    now: new Date("2026-06-19T00:00:00.000Z"),
+  });
+
+  assert.equal(record.rating, 5);
+  assert.equal(record.note, "定位清楚");
+  assert.equal(saveFeedbackRecord(record, storage), true);
+  assert.equal(storage.getItem(FEEDBACK_STORAGE_KEY).includes("zhongwan"), true);
+  assert.deepEqual(loadFeedbackRecords(storage), [record]);
+});
+
+function createMemoryStorage() {
+  const values = new Map();
+
+  return {
+    getItem(key) {
+      return values.has(key) ? values.get(key) : null;
+    },
+    setItem(key, value) {
+      values.set(key, String(value));
+    },
+  };
+}

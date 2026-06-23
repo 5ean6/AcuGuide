@@ -52,5 +52,9 @@ function engineStatusLabel(status: AcupointRecommendation["engine"]["status"]) {
     return "本機備援";
   }
 
+  if (status === "safety_blocked") {
+    return "安全攔截";
+  }
+
   return "RAG";
 }

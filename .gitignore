@@ -3,10 +3,7 @@ dist/
 artifacts/
 *.log
 *.tsbuildinfo
+.tmp-tests/
 
 # Local large model files. Download separately if you want Gemma web inference.
 public/models/gemma/*.task
-
-# Local planning/export artifacts that are not required to run the web app.
-企劃.pdf
-WEB_APP_PLAN.md

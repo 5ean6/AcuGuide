@@ -1,6 +1,14 @@
-export type FeatureModeId = "face" | "body" | "wellness";
+export type FeatureModeId = "face" | "body" | "wellness" | "other";
 
-export type AppStage = "select" | "calibrate" | "guide";
+export type BodyRegionId =
+  | "head-neck"
+  | "chest"
+  | "stomach"
+  | "lower-back"
+  | "upper-limb"
+  | "lower-limb";
+
+export type AppStage = "select" | "calibrate" | "guide" | "complete";
 
 export type CunCalibration = {
   pixelsPerCun: number;
@@ -14,6 +22,13 @@ export type PointPosition = {
   x: number;
   y: number;
   z: number;
+};
+
+export type BodyRegionPick = {
+  id: BodyRegionId;
+  label: string;
+  query: string;
+  position: PointPosition;
 };
 
 export type ArAnchorConfidence = "A" | "B" | "C" | "D";
@@ -87,6 +102,11 @@ export type AcupointRecommendation = {
   engine: {
     llm: "Gemma 4 E2B";
     embedding: "EmbeddingGemma";
-    status: "local_rag_preview" | "gemma_loading" | "gemma4_web" | "gemma_unavailable";
+    status:
+      | "local_rag_preview"
+      | "gemma_loading"
+      | "gemma4_web"
+      | "gemma_unavailable"
+      | "safety_blocked";
   };
 };

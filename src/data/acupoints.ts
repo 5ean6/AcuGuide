@@ -22,15 +22,22 @@ export const featureModes: FeatureMode[] = [
     meta: "脹氣 / 消化 / 疲勞",
     placeholder: "例如：脹氣、胃悶、精神疲勞",
   },
+  {
+    id: "other",
+    title: "其他部位",
+    compactTitle: "其他",
+    meta: "直接點 3D 人體",
+    placeholder: "先點 3D 人體，再補充：手痛、腳痛、胃痛、頭痛",
+  },
 ];
 
 export const guideGoals: GuideGoal[] = [
   {
     id: "face-eyelid-puffiness",
     mode: "face",
-    label: "改善眼皮浮腫",
-    description: "眼周浮腫、眼袋、睡醒泡泡眼",
-    query: "眼皮浮腫 眼袋 黑眼圈 眼周 睛明 攢竹 四白 瞳子髎",
+    label: "改善眼睛疲勞",
+    description: "眼睛疲勞、眼周浮腫、眼袋、睡醒泡泡眼",
+    query: "眼睛疲勞 眼皮浮腫 眼袋 黑眼圈 眼周 睛明 攢竹 四白 瞳子髎",
   },
   {
     id: "face-apple-cheek",
@@ -65,7 +72,7 @@ export const guideGoals: GuideGoal[] = [
     mode: "body",
     label: "腰背緊繃",
     description: "下背、腰部、久站久坐",
-    query: "腰背 腰 緊繃 腎俞 委中 承山",
+    query: "腰背 下背 腰部 緊繃 腎俞 腎俞 腰部保養",
   },
   {
     id: "body-knee-leg",
@@ -94,6 +101,13 @@ export const guideGoals: GuideGoal[] = [
     label: "精神疲勞",
     description: "容易累、提不起精神",
     query: "疲勞 精神 保養 百會 足三里 氣海 太衝",
+  },
+  {
+    id: "other-model-pick",
+    mode: "other",
+    label: "直接點 3D 人體",
+    description: "拖曳旋轉模型，點選疼痛位置後再補充症狀或目標。",
+    query: "",
   },
 ];
 

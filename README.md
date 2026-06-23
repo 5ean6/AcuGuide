@@ -1,18 +1,36 @@
 # 穴穴指教 AcuGuide Web Demo
 
-「穴穴指教」是一個個人化 AR 穴位導引與自我照護 Web Demo。此版本用來展示作品的核心流程：使用者選擇臉部美容、身體部位疼痛或調理身體目標後，系統會在 3D 頭部 / 全身人體模型上預覽推薦穴位，接著進入相機輔助定位畫面，透過 MediaPipe 偵測臉部、手部與身體姿態關鍵點，呈現穴位 AR 指引概念。
+AcuGuide 是「穴穴指教」競賽作品的 Web Demo，用來展示企劃書中的核心自我照護流程：從臉部美容、身體部位疼痛、調理身體三大情境出發，完成症狀輸入、安全審核、穴位推薦、3D 模型理解、相機輔助定位、按需校正、完成與本機回饋。
 
-此專案目前是 Web 版原型，目標是先驗證 80% 的互動流程與展示效果，後續可再延伸為 iOS App。
+此 Repository 是比賽現場展示用的瀏覽器原型。原始產品規劃以 iOS App、ARKit、Vision、on-device Gemma 4 E2B 與 EmbeddingGemma RAG 為目標；Web 版先驗證互動流程、資料結構、3D/MediaPipe 可行性與安全分流。
 
-## 功能特色
+## Demo 邊界
 
-- 三大導引類型：臉部美容、身體部位疼痛、調理身體
-- 預設目標：改善眼皮浮腫、蘋果肌澎潤、瘦小臉、淡化法令紋、肩頸痠痛、膝腿不適、脹氣腹脹等
-- 3D 模型預覽：頭部模型與全身人體模型顯示穴位高亮
-- MediaPipe 偵測：臉部、手部與身體姿態關鍵點偵測
-- AR 指引概念：在相機畫面中輔助確認臉部或身體部位
-- 穴位推薦：預設穴位組 + 本機 RAG preview；若本機 Gemma 模型存在，會嘗試使用 Gemma 4 E2B
-- 安全設計方向：定位信心、按壓說明、禁忌提醒與使用者回饋
+目前 Web Demo 真實執行：
+
+- React / TypeScript / Vite 單頁應用
+- 本機穴位資料庫與關鍵字匹配推薦
+- 安全規則攔截與孕期禁忌過濾
+- Three.js 3D 頭部與人體模型預覽
+- MediaPipe Face / Pose / Hand browser-side detection
+- 相機不可用時的 3D/文字備援流程
+- 完成頁與 localStorage 回饋紀錄
+- Playwright 桌機、手機與相機拒絕 smoke test
+
+目前屬於 Demo / Preview：
+
+- RAG 是本機規則檢索 preview，尚未接完整 WHO / SymMap / CloudTCM 審核知識庫
+- Gemma 4 E2B 只在本機大型模型檔存在且瀏覽器支援 WebGPU 時嘗試啟用
+- AR 疊加是 Web 相機畫面上的概念展示，不宣稱醫療級或臨床級精準定位
+- iOS ARKit、TrueDepth、LiDAR、SwiftData 與 LiteRT-LM 是企劃書中的正式版本方向
+
+## 核心流程
+
+1. 臉部美容 → 改善眼睛疲勞 → AI 推薦 → 3D 預覽 → AR Demo → 完成與回饋
+2. 身體部位疼痛 → 肩頸痠痛 → 推薦穴位 → AR Demo → 完成
+3. 調理身體 → 輸入脹氣相關症狀 → 安全審核 → RAG Demo → 校準 → 完成
+4. 輸入高風險症狀 → 系統攔截 → 不顯示一般穴位推薦 → 顯示就醫提醒
+5. 拒絕攝影機權限或攝影機不可用 → 自動切換 3D/文字備援 → 仍可完成流程
 
 ## 技術棧
 
@@ -23,6 +41,7 @@
 - MediaPipe Tasks Vision
 - MediaPipe Tasks GenAI
 - Lucide React
+- Node test runner
 - Playwright UI verification
 
 ## 專案結構
@@ -30,9 +49,9 @@
 ```text
 AcuGuide/
 ├─ src/
-│  ├─ components/          # 主要 UI、3D viewer、AR / camera panels
-│  ├─ data/                # 穴位、導引類型、預設目標資料
-│  ├─ lib/                 # 推薦、匹配、Gemma fallback 邏輯
+│  ├─ components/          # UI、3D viewer、AR/camera panels、完成回饋
+│  ├─ data/                # Demo 穴位、導引類型、預設目標資料
+│  ├─ lib/                 # 推薦、安全規則、流程、回饋與 Gemma fallback
 │  ├─ App.tsx
 │  └─ styles.css
 ├─ public/
@@ -41,28 +60,26 @@ AcuGuide/
 │  │  ├─ human/            # Sketchfab 全身模型與授權檔
 │  │  ├─ mediapipe/        # MediaPipe task models
 │  │  └─ gemma/            # 本機 Gemma 模型放置位置，不直接上傳大型 .task
-│  ├─ mediapipe/wasm/      # MediaPipe Vision WASM
-│  └─ genai/wasm/          # MediaPipe GenAI WASM
+│  ├─ mediapipe/wasm/
+│  └─ genai/wasm/
 ├─ scripts/
-│  └─ verify-ui.mjs        # Playwright UI smoke test
-├─ docs/
-│  └─ AcuGuide_iOS_企劃書初版.md
-├─ start-local.bat
-├─ package.json
-└─ vite.config.ts
+│  ├─ lint.mjs
+│  ├─ run-tests.mjs
+│  └─ verify-ui.mjs
+├─ tests/
+│  └─ domain.test.cjs
+├─ ARCHITECTURE.md
+├─ DEMO_SCRIPT.md
+├─ CLAUDE_REVIEW_HANDOFF.md
+├─ CLAUDE_REVIEW_REPORT.md
+├─ claude-review-prompt.md
+└─ package.json
 ```
 
 ## 開始使用
 
-### 1. 安裝依賴
-
 ```bash
 npm install
-```
-
-### 2. 啟動開發伺服器
-
-```bash
 npm run dev
 ```
 
@@ -72,85 +89,37 @@ npm run dev
 http://127.0.0.1:5173/
 ```
 
-Windows 也可以直接雙擊：
+Windows 也可以執行：
 
 ```text
 start-local.bat
 ```
 
-### 3. 建置正式版本
+## 驗證指令
 
 ```bash
-npm run build
-```
-
-### 4. 執行 UI 驗證
-
-```bash
+npm run typecheck
+npm run lint
+npm test
 npm run test:ui
+npm run build
+npm run clean
 ```
 
-## Gemma 模型說明
+`npm run clean` 會移除建置輸出、測試暫存、UI 截圖與根目錄日誌，不會刪除原始碼、模型或專案文件。
 
-GitHub 不適合直接上傳大型本機 LLM 模型。本專案目前的 Gemma web task 檔案約 1.9GB，已被 `.gitignore` 排除。
+`npm run test:ui` 會啟動 Vite 測試伺服器，使用 Playwright 驗證桌機、手機、3D canvas 非空白、臉部流程、肩頸流程、脹氣校正流程、高風險攔截與相機拒絕備援。
 
-若要啟用 Gemma 4 E2B Web 推論，請自行下載或準備模型檔，並放到：
+## Gemma 模型
+
+大型本機 LLM 模型不納入 GitHub。若要嘗試 Gemma 4 E2B Web 推論，請自行準備模型檔並放置：
 
 ```text
 public/models/gemma/gemma-4-E2B-it-web.task
 ```
 
-若沒有此檔案，網站仍可正常操作預設穴位組與本機 RAG preview；自由輸入症狀時，系統會顯示 Gemma 不可用並改用本機備援推薦。
+沒有模型檔時，Demo 仍會使用本機規則推薦與 RAG preview fallback，並在 UI 顯示 Gemma 不可用。
 
-## GitHub 上傳建議
+## 安全聲明
 
-建議上傳：
-
-```text
-src/
-public/models/head/
-public/models/human/
-public/models/mediapipe/
-public/mediapipe/
-public/genai/
-scripts/
-docs/
-index.html
-package.json
-package-lock.json
-tsconfig.json
-tsconfig.app.json
-tsconfig.node.json
-vite.config.ts
-start-local.bat
-.gitignore
-README.md
-```
-
-不要上傳：
-
-```text
-node_modules/
-dist/
-artifacts/
-*.log
-*.tsbuildinfo
-public/models/gemma/*.task
-企劃.pdf
-```
-
-可視情況上傳：
-
-```text
-docs/AcuGuide_iOS_企劃書初版.md
-```
-
-如果 GitHub repo 只想放 Web Demo 程式碼，可以保留 `docs/`；如果企劃書還在修改、暫時不想公開，可以先不要加入 commit。
-
-## 3D 模型授權
-
-本專案使用的頭部與全身人體模型來自 Sketchfab 下載檔案，模型資料夾內保留原始 `license.txt`。若公開展示或上架，請依照各模型授權條款標示作者與來源。
-
-## 注意事項
-
-本作品為自我照護與穴位學習輔助工具，不提供醫療診斷，也不能取代中醫師、醫師、物理治療師或其他專業醫療建議。若出現急性疼痛、眼部異常、皮膚破損、孕期高風險或其他不適合自行按壓的情況，應停止操作並尋求專業協助。
+本作品是穴位學習、自我照護與競賽展示原型，不提供醫療診斷，不保證治療效果，也不能取代中醫師、醫師、物理治療師或其他專業醫療建議。若出現急性胸痛、呼吸困難、突發無力、視力異常、劇烈腹痛、皮膚破損、感染、孕期高風險或其他不適合自行按壓的情況，系統會提示停止操作並尋求專業協助。

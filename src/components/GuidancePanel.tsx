@@ -1,7 +1,9 @@
 import { ArrowLeft, LocateFixed, RotateCcw } from "lucide-react";
 import type { ReactNode } from "react";
 import { safetyNote } from "../data/acupoints";
+import { confidenceLabel } from "../lib/confidence";
 import type { AcupointRecommendation, CunCalibration, PointMatch } from "../types";
+import { PressureCoach } from "./PressureCoach";
 import { RecommendationPanel } from "./RecommendationPanel";
 
 type GuidancePanelProps = {
@@ -9,9 +11,11 @@ type GuidancePanelProps = {
   activePointId: string;
   calibration: CunCalibration;
   query: string;
+  targetContact: boolean;
   onSelectPoint: (id: string) => void;
   onRestart: () => void;
   onCalibrate: () => void;
+  onComplete: () => void;
   modelPreview?: ReactNode;
   recommendation?: AcupointRecommendation;
 };
@@ -21,9 +25,11 @@ export function GuidancePanel({
   activePointId,
   calibration,
   query,
+  targetContact,
   onSelectPoint,
   onRestart,
   onCalibrate,
+  onComplete,
   modelPreview,
   recommendation,
 }: GuidancePanelProps) {
@@ -50,7 +56,8 @@ export function GuidancePanel({
       ) : null}
 
       {activePoint ? (
-        <section className="active-point" aria-live="polite">
+        <>
+          <section className="active-point" aria-live="polite">
           <div className="point-kicker">
             <LocateFixed size={16} strokeWidth={1.9} aria-hidden="true" />
             {activePoint.reason}
@@ -60,7 +67,7 @@ export function GuidancePanel({
           <div
             className={`ar-anchor-card ar-anchor-${activePoint.ar.confidence.toLowerCase()}`}
           >
-            <span>AR {activePoint.ar.confidence}</span>
+            <span>{confidenceLabel(activePoint.ar.confidence)}</span>
             <strong>{activePoint.ar.enabled ? "可鏡頭輔助" : "先保留於 3D 指引"}</strong>
             <small>{activePoint.ar.note}</small>
           </div>
@@ -82,7 +89,9 @@ export function GuidancePanel({
               <dd>{activePoint.caution}</dd>
             </div>
           </dl>
-        </section>
+          </section>
+          <PressureCoach point={activePoint} detectedContact={targetContact} />
+        </>
       ) : null}
 
       <div className="point-list" role="list" aria-label="匹配穴位">
@@ -122,6 +131,14 @@ export function GuidancePanel({
         >
           <RotateCcw size={17} strokeWidth={2} aria-hidden="true" />
           校正
+        </button>
+        <button
+          className="primary-action"
+          type="button"
+          onClick={onComplete}
+          data-testid="complete-guide"
+        >
+          完成
         </button>
       </div>
     </aside>

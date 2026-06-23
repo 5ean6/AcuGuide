@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { createServer } from "vite";
@@ -98,7 +98,43 @@ async function runViewport(browser, baseUrl, viewport) {
   await page.locator('[data-testid="face-camera-state"]').filter({ hasText: "定位中" }).waitFor({
     timeout: 45000,
   });
+  const faceTrackingPanel = page.locator('[data-testid="face-tracking-panel"]');
+  const initialFaceTarget = await faceTrackingPanel.getAttribute("data-target-point-id");
+  const initialArPointName = await page.locator('[data-testid="active-ar-point-name"]').textContent();
+  await page.locator('[data-testid="next-guide-point"]').click();
+  await page.waitForFunction(
+    (previousTarget) =>
+      document
+        .querySelector('[data-testid="face-tracking-panel"]')
+        ?.getAttribute("data-target-point-id") !== previousTarget,
+    initialFaceTarget,
+  );
+  const nextArPointName = await page.locator('[data-testid="active-ar-point-name"]').textContent();
+  assert(
+    nextArPointName && nextArPointName !== initialArPointName,
+    `${viewport.name}: next AR point did not update active point`,
+  );
   await page.locator('[data-testid="face-camera-toggle"]').click();
+  await page.locator('[data-testid="pressure-sound-toggle"]').click();
+  const countdown = page.locator('[data-testid="pressure-countdown"]');
+  const countdownBefore = Number(await countdown.textContent());
+  const pressureHold = page.locator('[data-testid="pressure-hold"]');
+  await pressureHold.dispatchEvent("pointerdown", {
+    pointerId: 1,
+    pointerType: "mouse",
+    buttons: 1,
+  });
+  await page.waitForTimeout(1150);
+  await pressureHold.dispatchEvent("pointerup", {
+    pointerId: 1,
+    pointerType: "mouse",
+    buttons: 0,
+  });
+  const countdownAfter = Number(await countdown.textContent());
+  assert(
+    countdownAfter < countdownBefore,
+    `${viewport.name}: pressure countdown did not advance while pressing`,
+  );
   const faceGuideStats = await canvasStats(page);
   assert(faceGuideStats.ok, `${viewport.name}: face guide canvas is blank`);
 
@@ -107,11 +143,56 @@ async function runViewport(browser, baseUrl, viewport) {
     fullPage: true,
   });
 
+  await page.locator('[data-testid="complete-guide"]').click();
+  await page.getByText("完成與回饋").waitFor();
+  await page.locator('[data-testid="feedback-rating-4"]').click();
+  await page.locator('[data-testid="save-feedback"]').click();
+  await page.locator('[data-testid="feedback-saved"]').waitFor();
   await page.locator('[data-testid="restart-guide"]').click();
   await page.getByText("調理身體").waitFor();
-  await page.locator('[data-testid="goal-body-shoulder-neck"]').hover();
-  const bodyHoverStats = await canvasStats(page);
-  assert(bodyHoverStats.ok, `${viewport.name}: body hover preview canvas is blank`);
+
+  await page.locator("#intent-input").fill("急性胸痛 呼吸困難");
+  await page.locator('[data-testid="intent-submit"]').click();
+  await page.locator('[data-testid="safety-block"]').waitFor();
+  assert(
+    (await page.locator('[data-testid="model-confirm"]').count()) === 0,
+    `${viewport.name}: high-risk safety block still shows normal confirm`,
+  );
+
+  await page.locator('[data-testid="feature-other"]').click();
+  await page.locator('[data-testid="model-confirm"]').waitFor();
+  assert(
+    await page.locator('[data-testid="model-confirm"]').isDisabled(),
+    `${viewport.name}: other mode confirm is enabled before model body pick`,
+  );
+  const otherCanvas = page.locator(".anatomy-viewer canvas").first();
+  const canvasBox = await otherCanvas.boundingBox();
+  assert(canvasBox, `${viewport.name}: other mode canvas is not measurable`);
+  await otherCanvas.click({
+    position: {
+      x: canvasBox.width * 0.5,
+      y: canvasBox.height * 0.44,
+    },
+  });
+  await page.waitForFunction(() => {
+    const region = document.querySelector('[data-testid="selected-body-region"]');
+    return region?.getAttribute("data-region-id");
+  });
+  const selectedRegionId = await page
+    .locator('[data-testid="selected-body-region"]')
+    .getAttribute("data-region-id");
+  assert(selectedRegionId, `${viewport.name}: direct model body pick did not select a region`);
+  const safetyBlockedAfterBodyPick =
+    (await page.locator('[data-testid="safety-block"]').count()) > 0;
+  if (!safetyBlockedAfterBodyPick) {
+    assert(
+      !(await page.locator('[data-testid="model-confirm"]').isDisabled()),
+      `${viewport.name}: other mode confirm stayed disabled after direct model pick`,
+    );
+  }
+  const otherStats = await canvasStats(page);
+  assert(otherStats.ok, `${viewport.name}: other body-pick canvas is blank`);
+
   await page.locator('[data-testid="goal-wellness-bloating"]').click();
   await page.getByText("Human by aaron.kalvin").waitFor();
   const wellnessStats = await canvasStats(page);
@@ -121,6 +202,21 @@ async function runViewport(browser, baseUrl, viewport) {
     path: fileURLToPath(new URL(`${viewport.name}-wellness-select.png`, artifactsDir)),
     fullPage: true,
   });
+
+  await page.locator("#intent-input").fill("飯後脹氣 腹部悶");
+  await page.locator('[data-testid="intent-submit"]').click();
+  await page.locator('[data-testid="model-confirm"]').waitFor();
+  await page.locator('[data-testid="model-confirm"]').click();
+  await page.locator('[data-testid="body-tracking-panel"]').waitFor();
+  await page.locator('[data-testid="recalibrate-guide"]').click();
+  await page.locator('[data-testid="hand-calibration-panel"]').waitFor();
+  await page.locator('[data-testid="calibration-done"]').click();
+  await page.locator('[data-testid="complete-guide"]').click();
+  await page.getByText("完成與回饋").waitFor();
+  await page.locator('[data-testid="feedback-rating-5"]').click();
+  await page.locator('[data-testid="save-feedback"]').click();
+  await page.locator('[data-testid="feedback-saved"]').waitFor();
+  await page.locator('[data-testid="restart-guide"]').click();
 
   await page.locator('[data-testid="feature-body"]').click();
   await page.locator("#intent-input").fill("肩頸痠痛");
@@ -146,6 +242,8 @@ async function runViewport(browser, baseUrl, viewport) {
 
   const guideStats = await canvasStats(page);
   assert(guideStats.ok, `${viewport.name}: guide canvas is blank`);
+  await page.locator('[data-testid="complete-guide"]').click();
+  await page.getByText("完成與回饋").waitFor();
 
   await page.screenshot({
     path: fileURLToPath(new URL(`${viewport.name}-guide.png`, artifactsDir)),
@@ -157,13 +255,41 @@ async function runViewport(browser, baseUrl, viewport) {
     viewport: viewport.name,
     faceStats,
     faceGuideStats,
-    bodyHoverStats,
+    otherStats,
     wellnessStats,
     initialStats,
     guideStats,
   };
 }
 
+async function runCameraDeniedFallback(browser, baseUrl) {
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+  });
+  const page = await context.newPage();
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: () =>
+          Promise.reject(new DOMException("Permission denied", "NotAllowedError")),
+      },
+    });
+  });
+  await page.goto(baseUrl);
+  await page.waitForLoadState("networkidle");
+  await page.locator('[data-testid="model-confirm"]').click();
+  await page.locator('[data-testid="face-tracking-panel"]').waitFor();
+  await page.locator('[data-testid="face-camera-toggle"]').click();
+  await page.getByText("已切換為 3D 與文字備援").waitFor();
+  await page.locator('[data-testid="complete-guide"]').click();
+  await page.getByText("完成與回饋").waitFor();
+  await context.close();
+
+  return { ok: true };
+}
+
+await rm(artifactsDir, { recursive: true, force: true });
 await mkdir(artifactsDir, { recursive: true });
 
 const server = await createServer({
@@ -184,7 +310,9 @@ try {
   for (const viewport of viewports) {
     results.push(await runViewport(browser, baseUrl, viewport));
   }
-  console.log(JSON.stringify({ baseUrl, results }, null, 2));
+  const cameraDeniedFallback = await runCameraDeniedFallback(browser, baseUrl);
+  console.log(JSON.stringify({ baseUrl, results, cameraDeniedFallback }, null, 2));
+  await rm(artifactsDir, { recursive: true, force: true });
 } finally {
   await browser.close();
   await server.close();

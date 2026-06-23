@@ -5,6 +5,7 @@ const defaultPointIds: Record<FeatureModeId, string[]> = {
   face: ["jingming", "zanzhu", "sibai", "yingxiang"],
   body: ["jianjing", "fengchi", "hegu", "zusanli"],
   wellness: ["zhongwan", "tianshu", "guanyuan", "qihai"],
+  other: ["fengchi", "hegu", "zusanli", "zhongwan"],
 };
 
 function normalize(value: string) {
@@ -76,7 +77,7 @@ function reasonFor(score: number, query: string) {
 }
 
 export function matchGuidePoints(mode: FeatureModeId, query: string): PointMatch[] {
-  const candidates = guidePoints.filter((point) => point.mode === mode);
+  const candidates = guidePoints.filter((point) => mode === "other" || point.mode === mode);
   const scored = candidates
     .map((point) => {
       const pointText = normalize(

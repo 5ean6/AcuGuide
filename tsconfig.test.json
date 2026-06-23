@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "ignoreDeprecations": "6.0",
+    "rootDir": ".",
+    "outDir": ".tmp-tests",
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "noEmit": false
+  },
+  "files": [
+    "src/types.ts",
+    "src/data/acupoints.ts",
+    "src/lib/bodyRegions.ts",
+    "src/lib/pressGuidance.ts",
+    "src/lib/matcher.ts",
+    "src/lib/recommender.ts",
+    "src/lib/safety.ts",
+    "src/lib/confidence.ts",
+    "src/lib/demoFlow.ts",
+    "src/lib/feedback.ts"
+  ]
+}

@@ -30,6 +30,7 @@ type PoseSummary = {
 type BodyTrackingPanelProps = {
   targetPointId?: string;
   targetLabel?: string;
+  onTargetContactChange?: (contact: boolean) => void;
 };
 
 type CombinedLandmarkers = {
@@ -73,12 +74,19 @@ const FACE_CONNECTION_GROUPS = [
   FaceLandmarker.FACE_LANDMARKS_LIPS,
 ];
 
-export function BodyTrackingPanel({ targetPointId, targetLabel }: BodyTrackingPanelProps) {
+export function BodyTrackingPanel({
+  targetPointId,
+  targetLabel,
+  onTargetContactChange,
+}: BodyTrackingPanelProps) {
   const previewRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const landmarkerRef = useRef<CombinedLandmarkers | null>(null);
+  const targetRef = useRef({ targetPointId, targetLabel });
+  const contactRef = useRef(false);
+  const onTargetContactChangeRef = useRef(onTargetContactChange);
   const frameRef = useRef(0);
   const lastVideoTimeRef = useRef(-1);
   const lastSummaryAtRef = useRef(0);
@@ -88,6 +96,15 @@ export function BodyTrackingPanel({ targetPointId, targetLabel }: BodyTrackingPa
 
   const isRunning = status === "running";
   const canUseCamera = Boolean(navigator.mediaDevices?.getUserMedia);
+
+  useEffect(() => {
+    targetRef.current = { targetPointId, targetLabel };
+    updateTargetContact(false);
+  }, [targetLabel, targetPointId]);
+
+  useEffect(() => {
+    onTargetContactChangeRef.current = onTargetContactChange;
+  }, [onTargetContactChange]);
 
   useEffect(() => {
     if (!isRunning) {
@@ -201,7 +218,8 @@ export function BodyTrackingPanel({ targetPointId, targetLabel }: BodyTrackingPa
     }
 
     clearCanvas();
-    setSummary(createIdleSummary(targetLabel));
+    updateTargetContact(false);
+    setSummary(createIdleSummary(targetRef.current.targetLabel));
     setStatus("idle");
   }
 
@@ -224,7 +242,23 @@ export function BodyTrackingPanel({ targetPointId, targetLabel }: BodyTrackingPa
       if (video.currentTime !== lastVideoTimeRef.current) {
         const result = detectCombinedLandmarks(landmarkers, video, performance.now());
         drawCameraFrame(ctx, canvas, video);
-        drawHolistic(ctx, canvas, video, result, targetPointId, targetLabel);
+        const currentTarget = targetRef.current;
+        const targetContact = detectBodyTargetContact(
+          result,
+          getCoverRect(canvas, video),
+          currentTarget.targetPointId,
+          contactRef.current,
+        );
+        updateTargetContact(targetContact);
+        drawHolistic(
+          ctx,
+          canvas,
+          video,
+          result,
+          currentTarget.targetPointId,
+          currentTarget.targetLabel,
+          targetContact,
+        );
         lastVideoTimeRef.current = video.currentTime;
         updateSummary(result);
       }
@@ -239,7 +273,7 @@ export function BodyTrackingPanel({ targetPointId, targetLabel }: BodyTrackingPa
       return;
     }
     lastSummaryAtRef.current = now;
-    setSummary(analyzeHolistic(result, targetLabel));
+    setSummary(analyzeHolistic(result, targetRef.current.targetLabel));
   }
 
   function clearCanvas() {
@@ -251,11 +285,20 @@ export function BodyTrackingPanel({ targetPointId, targetLabel }: BodyTrackingPa
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
+  function updateTargetContact(contact: boolean) {
+    if (contactRef.current === contact) {
+      return;
+    }
+    contactRef.current = contact;
+    onTargetContactChangeRef.current?.(contact);
+  }
+
   return (
     <section
       className="camera-panel"
       aria-label="鏡頭確認部位"
       data-testid="body-tracking-panel"
+      data-target-point-id={targetPointId ?? ""}
     >
       <div className="camera-panel-head">
         <div>
@@ -371,14 +414,14 @@ function formatCameraError(errorValue: unknown) {
   }
 
   if (errorValue.name === "NotAllowedError" || errorValue.message.includes("Permission")) {
-    return "相機權限已被拒絕。請在瀏覽器網址列的網站權限中允許相機後再試一次。";
+    return "相機權限已被拒絕，已切換為 3D 與文字備援 Demo。可依右側模型完成流程。";
   }
 
   if (errorValue.name === "NotFoundError") {
-    return "找不到可用的相機裝置。";
+    return "找不到可用的相機裝置，已切換為 3D 與文字備援 Demo。";
   }
 
-  return errorValue.message || "相機啟動失敗。";
+  return errorValue.message || "相機啟動失敗，已切換為 3D 與文字備援 Demo。";
 }
 
 function syncCanvasSize(canvas: HTMLCanvasElement, preview: HTMLDivElement) {
@@ -415,6 +458,7 @@ function drawHolistic(
   result: CombinedLandmarkResult,
   targetPointId?: string,
   targetLabel?: string,
+  targetContact = false,
 ) {
   const cover = getCoverRect(canvas, video);
   drawPoseLandmarks(ctx, result.poseLandmarks[0], cover);
@@ -424,7 +468,13 @@ function drawHolistic(
 
   const target = targetPointId ? getBodyTargetPoint(result, cover, targetPointId) : undefined;
   if (target) {
-    drawTargetMarker(ctx, target, targetLabel);
+    if (targetContact) {
+      ctx.save();
+      ctx.fillStyle = "rgba(10, 18, 14, 0.14)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
+    drawTargetMarker(ctx, target, targetLabel, targetContact);
   }
 }
 
@@ -590,23 +640,56 @@ function getBodyTargetPoint(
   return undefined;
 }
 
+function detectBodyTargetContact(
+  result: CombinedLandmarkResult,
+  cover: CoverRect,
+  targetPointId: string | undefined,
+  wasContacting: boolean,
+) {
+  if (!targetPointId) {
+    return false;
+  }
+
+  const target = getBodyTargetPoint(result, cover, targetPointId);
+  if (!target) {
+    return false;
+  }
+
+  const fingertips = [
+    result.leftHandLandmarks[0]?.[8],
+    result.leftHandLandmarks[0]?.[12],
+    result.rightHandLandmarks[0]?.[8],
+    result.rightHandLandmarks[0]?.[12],
+  ]
+    .filter((landmark): landmark is NormalizedLandmark => Boolean(landmark))
+    .map((landmark) => landmarkToCanvas(landmark, cover));
+  const baseThreshold = Math.max(24, Math.min(cover.width, cover.height) * 0.045);
+  const threshold = wasContacting ? baseThreshold * 1.35 : baseThreshold;
+
+  return fingertips.some(
+    (fingertip) => Math.hypot(fingertip.x - target.x, fingertip.y - target.y) <= threshold,
+  );
+}
+
 function drawTargetMarker(
   ctx: CanvasRenderingContext2D,
   target: CanvasPoint,
   targetLabel?: string,
+  contact = false,
 ) {
   ctx.save();
+  const pulse = contact ? 4 + Math.sin(performance.now() / 110) * 3 : 0;
   ctx.beginPath();
-  ctx.arc(target.x, target.y, 18, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(247, 247, 244, 0.64)";
+  ctx.arc(target.x, target.y, 18 + pulse, 0, Math.PI * 2);
+  ctx.fillStyle = contact ? "rgba(47, 111, 96, 0.82)" : "rgba(247, 247, 244, 0.64)";
   ctx.fill();
-  ctx.strokeStyle = "#111412";
-  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = contact ? "#ffffff" : "#111412";
+  ctx.lineWidth = contact ? 3.5 : 2.5;
   ctx.stroke();
 
   ctx.beginPath();
   ctx.arc(target.x, target.y, 5, 0, Math.PI * 2);
-  ctx.fillStyle = "#2f6f60";
+  ctx.fillStyle = contact ? "#ffffff" : "#2f6f60";
   ctx.fill();
 
   if (targetLabel) {
