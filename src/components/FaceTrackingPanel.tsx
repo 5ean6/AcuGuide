@@ -19,6 +19,7 @@ import {
 } from "@mediapipe/tasks-vision";
 import { getFaceAlignment, type FaceAlignmentState } from "../lib/faceAlignment";
 import { faceAcupointLayouts } from "../lib/acupointTracking";
+import { assetPath } from "../lib/assetPaths";
 
 type TrackingStatus = "idle" | "loading" | "running" | "error";
 
@@ -53,9 +54,9 @@ type CanvasPoint = {
   y: number;
 };
 
-const WASM_ROOT = "/mediapipe/wasm";
-const FACE_MODEL_PATH = "/models/mediapipe/face_landmarker.task";
-const HAND_MODEL_PATH = "/models/mediapipe/hand_landmarker.task";
+const WASM_ROOT = assetPath("mediapipe/wasm");
+const FACE_MODEL_PATH = assetPath("models/mediapipe/face_landmarker.task");
+const HAND_MODEL_PATH = assetPath("models/mediapipe/hand_landmarker.task");
 const FACE_CONNECTION_GROUPS = [
   FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
   FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,

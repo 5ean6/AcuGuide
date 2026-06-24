@@ -3,6 +3,7 @@ import { acupointKnowledgeBase, guidePoints } from "../data/acupoints";
 import type { FeatureModeId, PointMatch } from "../types";
 import { matchGuidePoints } from "./matcher";
 import { recommendAcupoints } from "./recommender";
+import { assetPath } from "./assetPaths";
 
 type GemmaRecommendationInput = {
   mode: FeatureModeId;
@@ -12,8 +13,8 @@ type GemmaRecommendationInput = {
 
 type GemmaRecommendationOutput = ReturnType<typeof recommendAcupoints>;
 
-const WASM_ROOT = "/genai/wasm";
-const GEMMA_MODEL_PATH = "/models/gemma/gemma-4-E2B-it-web.task";
+const WASM_ROOT = assetPath("genai/wasm");
+const GEMMA_MODEL_PATH = assetPath("models/gemma/gemma-4-E2B-it-web.task");
 let llmPromise: Promise<LlmInference> | null = null;
 
 export async function recommendAcupointsWithGemma(
@@ -63,6 +64,10 @@ async function getGemmaInference() {
 }
 
 async function createGemmaInference() {
+  if (import.meta.env.PROD) {
+    throw new Error("Gemma 未包含在 production 靜態部署版本");
+  }
+
   if (!("gpu" in navigator) || navigator.webdriver) {
     throw new Error("Gemma 4 Web 需要瀏覽器支援 WebGPU");
   }

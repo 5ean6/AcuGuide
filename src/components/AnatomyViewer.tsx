@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { getAcupointGeometry } from "../data/acupointGeometry";
 import { createBodyRegionPick } from "../lib/bodyRegions";
+import { assetPath } from "../lib/assetPaths";
 import type { BodyRegionPick, FeatureModeId, PointMatch, SymptomMarker } from "../types";
 
 type AnatomyViewerProps = {
@@ -84,7 +85,7 @@ const markerRingRadius = {
 };
 const modelConfigs: Record<FeatureModeId, ModelConfig> = {
   face: {
-    path: "/models/head/scene.gltf",
+    path: assetPath("models/head/scene.gltf"),
     title: "human head by sculptgl",
     author: "Payzero",
     source:
@@ -94,7 +95,7 @@ const modelConfigs: Record<FeatureModeId, ModelConfig> = {
     centerY: 0.2,
   },
   body: {
-    path: "/models/human/scene.gltf",
+    path: assetPath("models/human/scene.gltf"),
     title: "Human",
     author: "aaron.kalvin",
     source: "https://sketchfab.com/3d-models/human-03a70758739544b3aa705c13af3872b1",
@@ -103,7 +104,7 @@ const modelConfigs: Record<FeatureModeId, ModelConfig> = {
     centerY: -0.12,
   },
   wellness: {
-    path: "/models/human/scene.gltf",
+    path: assetPath("models/human/scene.gltf"),
     title: "Human",
     author: "aaron.kalvin",
     source: "https://sketchfab.com/3d-models/human-03a70758739544b3aa705c13af3872b1",
@@ -112,7 +113,7 @@ const modelConfigs: Record<FeatureModeId, ModelConfig> = {
     centerY: -0.12,
   },
   other: {
-    path: "/models/human/scene.gltf",
+    path: assetPath("models/human/scene.gltf"),
     title: "Human",
     author: "aaron.kalvin",
     source: "https://sketchfab.com/3d-models/human-03a70758739544b3aa705c13af3872b1",

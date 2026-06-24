@@ -14,6 +14,7 @@ import {
   PoseLandmarker,
 } from "@mediapipe/tasks-vision";
 import { getBodyAcupointLandmark } from "../lib/acupointTracking";
+import { assetPath } from "../lib/assetPaths";
 
 type TrackingStatus = "idle" | "loading" | "running" | "error";
 
@@ -59,10 +60,10 @@ type CanvasPoint = {
   y: number;
 };
 
-const WASM_ROOT = "/mediapipe/wasm";
-const POSE_MODEL_PATH = "/models/mediapipe/pose_landmarker_lite.task";
-const FACE_MODEL_PATH = "/models/mediapipe/face_landmarker.task";
-const HAND_MODEL_PATH = "/models/mediapipe/hand_landmarker.task";
+const WASM_ROOT = assetPath("mediapipe/wasm");
+const POSE_MODEL_PATH = assetPath("models/mediapipe/pose_landmarker_lite.task");
+const FACE_MODEL_PATH = assetPath("models/mediapipe/face_landmarker.task");
+const HAND_MODEL_PATH = assetPath("models/mediapipe/hand_landmarker.task");
 const CORE_LANDMARKS = [11, 12, 23, 24, 25, 26];
 const HOLISTIC_TOTAL_LANDMARKS = 543;
 const FACE_LANDMARK_COUNT = 468;

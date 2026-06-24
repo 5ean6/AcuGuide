@@ -48,6 +48,16 @@ npm run clean
 
 目前的 RAG 與 Gemma 為展示用途；瀏覽器 AR 是 MediaPipe 概念驗證，不等同於正式 iOS 版的 ARKit、TrueDepth 或 LiDAR 定位。本產品不取代醫療診斷。
 
+### GitHub Pages 部署
+
+推送至 `main` 後，`.github/workflows/deploy-pages.yml` 會自動驗證、建置並部署：
+
+```text
+https://5ean6.github.io/AcuGuide/
+```
+
+請在 GitHub repository 的 `Settings > Pages > Build and deployment` 將 Source 設為 `GitHub Actions`。production 部署會排除 Gemma 大型模型並立即使用本機規則推薦；3D、MediaPipe 與相機功能仍會保留。
+
 ## English
 
 AcuGuide is an interactive web demo for acupoint guidance. Users can choose facial care, body pain, wellness, or select an uncomfortable area directly on a rotatable 3D body, then enter symptoms and goals to receive suggested acupoints.
@@ -81,5 +91,9 @@ Open `http://127.0.0.1:5173/`.
 ### Demo Boundaries
 
 RAG and Gemma integration are demonstration features. Browser AR is a MediaPipe proof of concept and does not represent production iOS ARKit, TrueDepth, or LiDAR accuracy. AcuGuide is not a substitute for medical diagnosis.
+
+### GitHub Pages
+
+Pushes to `main` are deployed by `.github/workflows/deploy-pages.yml` to `https://5ean6.github.io/AcuGuide/`. Set the repository Pages source to `GitHub Actions`. Production builds exclude the large Gemma model and use the local rule-based recommender immediately.
 
 `npm run verify:geometry` loads the actual GLTF meshes and checks that every calibrated acupoint reaches its intended model surface.

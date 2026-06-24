@@ -16,6 +16,7 @@ import {
   type HandLandmarkerResult,
   type NormalizedLandmark,
 } from "@mediapipe/tasks-vision";
+import { assetPath } from "../lib/assetPaths";
 import type { CunCalibration } from "../types";
 
 type CalibrationStepProps = {
@@ -42,8 +43,8 @@ type HandMeasure = {
   instruction: string;
 };
 
-const WASM_ROOT = "/mediapipe/wasm";
-const HAND_MODEL_PATH = "/models/mediapipe/hand_landmarker.task";
+const WASM_ROOT = assetPath("mediapipe/wasm");
+const HAND_MODEL_PATH = assetPath("models/mediapipe/hand_landmarker.task");
 const INDEX_MCP = 5;
 const PINKY_MCP = 17;
 const HIGHLIGHT_LANDMARKS = [INDEX_MCP, PINKY_MCP];
