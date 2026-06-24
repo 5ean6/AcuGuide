@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { getAcupointGeometry } from "../data/acupointGeometry";
 import { createBodyRegionPick } from "../lib/bodyRegions";
-import type { BodyRegionPick, FeatureModeId, PointMatch } from "../types";
+import type { BodyRegionPick, FeatureModeId, PointMatch, SymptomMarker } from "../types";
 
 type AnatomyViewerProps = {
   mode: FeatureModeId;
@@ -10,6 +11,8 @@ type AnatomyViewerProps = {
   activePointId?: string;
   focusPointId?: string;
   autoRotate?: boolean;
+  symptomMarker?: SymptomMarker;
+  focusSymptomMarker?: boolean;
   regionSelectionEnabled?: boolean;
   onPointSelect?: (id: string) => void;
   onBodyRegionSelect?: (region: BodyRegionPick) => void;
@@ -37,6 +40,9 @@ type MarkerRecord = {
   mesh: THREE.Mesh;
   ring: THREE.Mesh;
   anchor: THREE.Vector3;
+  surfaceDirection: THREE.Vector3;
+  projectionDistance?: number;
+  snapToSurface?: boolean;
 };
 
 type ViewerState = {
@@ -45,17 +51,28 @@ type ViewerState = {
   markerGroup: THREE.Group;
   markerMeshes: THREE.Object3D[];
   markerRecords: MarkerRecord[];
+  symptomGroup: THREE.Group;
+  symptomRecord: MarkerRecord | null;
+  symptomPath: {
+    anchors: THREE.Vector3[];
+    direction: THREE.Vector3;
+    projectionDistance?: number;
+    mesh: THREE.Mesh;
+  } | null;
   camera: THREE.PerspectiveCamera;
   materials: {
     marker: THREE.MeshStandardMaterial;
     markerActive: THREE.MeshStandardMaterial;
+    markerRing: THREE.MeshStandardMaterial;
+    markerRingActive: THREE.MeshStandardMaterial;
+    symptom: THREE.MeshStandardMaterial;
   };
   model: THREE.Object3D | null;
   focusPointId?: string;
 };
 
 const markerColor = new THREE.Color("#f7f7f4");
-const activeMarkerColor = new THREE.Color("#111412");
+const symptomMarkerColor = new THREE.Color("#2f6f60");
 const softMaterialColor = new THREE.Color("#ddd7cc");
 const markerRadius = {
   idle: 0.024,
@@ -120,6 +137,8 @@ export function AnatomyViewer({
   activePointId,
   focusPointId,
   autoRotate = true,
+  symptomMarker,
+  focusSymptomMarker = false,
   regionSelectionEnabled = false,
   onPointSelect,
   onBodyRegionSelect,
@@ -164,7 +183,7 @@ export function AnatomyViewer({
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
     const isFaceMode = mode === "face";
-    camera.position.set(0, isFaceMode ? 0.25 : 0.05, isFaceMode ? 3.6 : 4.8);
+    camera.position.set(0, isFaceMode ? 0.25 : 0.05, isFaceMode ? 5.2 : 4.8);
 
     const modelRoot = new THREE.Group();
     const rotation = rememberedRotation.get(mode) ?? initialModelRotation[mode];
@@ -185,11 +204,28 @@ export function AnatomyViewer({
         emissiveIntensity: 0.1,
       }),
       markerActive: new THREE.MeshStandardMaterial({
-        color: activeMarkerColor,
-        roughness: 0.22,
-        metalness: 0.06,
-        emissive: new THREE.Color("#7fc7ad"),
-        emissiveIntensity: 0.42,
+        color: markerColor,
+        roughness: 0.26,
+        metalness: 0.04,
+        emissive: new THREE.Color("#ffffff"),
+        emissiveIntensity: 0.16,
+      }),
+      markerRing: new THREE.MeshStandardMaterial({
+        color: markerColor,
+        roughness: 0.32,
+        metalness: 0.02,
+      }),
+      markerRingActive: new THREE.MeshStandardMaterial({
+        color: markerColor,
+        roughness: 0.25,
+        metalness: 0.04,
+      }),
+      symptom: new THREE.MeshStandardMaterial({
+        color: symptomMarkerColor,
+        roughness: 0.24,
+        metalness: 0.03,
+        emissive: new THREE.Color("#72b49e"),
+        emissiveIntensity: 0.45,
       }),
     };
 
@@ -198,6 +234,9 @@ export function AnatomyViewer({
     const markerGroup = new THREE.Group();
     markerGroup.visible = false;
     modelRoot.add(markerGroup);
+    const symptomGroup = new THREE.Group();
+    symptomGroup.visible = false;
+    modelRoot.add(symptomGroup);
 
     const viewerState: ViewerState = {
       mode,
@@ -205,10 +244,16 @@ export function AnatomyViewer({
       markerGroup,
       markerMeshes,
       markerRecords,
+      symptomGroup,
+      symptomRecord: null,
+      symptomPath: null,
       camera,
       materials: {
         marker: materials.marker,
         markerActive: materials.markerActive,
+        markerRing: materials.markerRing,
+        markerRingActive: materials.markerRingActive,
+        symptom: materials.symptom,
       },
       model: null,
       focusPointId,
@@ -230,6 +275,7 @@ export function AnatomyViewer({
         modelRoot.add(gltf.scene);
         viewerState.model = gltf.scene;
         snapMarkersToModelSurface(modelRoot, markerGroup, gltf.scene, markerRecords);
+        snapSymptomMarker(viewerState, gltf.scene);
       },
       undefined,
       () => {
@@ -237,6 +283,7 @@ export function AnatomyViewer({
           const fallbackModel = createFallbackModel(modelRoot, materials.skin, mode);
           viewerState.model = fallbackModel;
           snapMarkersToModelSurface(modelRoot, markerGroup, fallbackModel, markerRecords);
+          snapSymptomMarker(viewerState, fallbackModel);
         }
       },
     );
@@ -348,11 +395,21 @@ export function AnatomyViewer({
       const focusRecord = viewerState.focusPointId
         ? viewerState.markerRecords.find((marker) => marker.pointId === viewerState.focusPointId)
         : undefined;
+      const focusTarget = focusRecord ??
+        (focusSymptomMarker ? viewerState.symptomRecord ?? undefined : undefined);
 
-      if (!drag.active && focusRecord) {
-        rotateModelTowardAnchor(modelRoot, focusRecord.anchor, mode);
+      if (!drag.active && focusTarget) {
+        rotateModelTowardAnchor(modelRoot, focusTarget.anchor, mode);
       } else if (!drag.active && autoRotate) {
         modelRoot.rotation.y += isFaceMode ? 0.0013 : 0.001;
+      }
+
+      if (
+        viewerState.symptomRecord &&
+        viewerState.symptomRecord.ring !== viewerState.symptomRecord.mesh
+      ) {
+        const pulse = 1 + Math.sin(performance.now() / 260) * 0.13;
+        viewerState.symptomRecord.ring.scale.setScalar(pulse);
       }
 
       try {
@@ -382,7 +439,7 @@ export function AnatomyViewer({
       disposeObject(scene);
       renderer.dispose();
     };
-  }, [autoRotate, mode, modelConfig]);
+  }, [autoRotate, focusSymptomMarker, mode, modelConfig]);
 
   useEffect(() => {
     const viewerState = viewerStateRef.current;
@@ -412,6 +469,17 @@ export function AnatomyViewer({
     }
   }, [activePointId, focusPointId, mode, points]);
 
+  useEffect(() => {
+    const viewerState = viewerStateRef.current;
+    if (!viewerState || viewerState.mode !== mode) {
+      return;
+    }
+    syncSymptomMarker(viewerState, symptomMarker);
+    if (viewerState.model) {
+      snapSymptomMarker(viewerState, viewerState.model);
+    }
+  }, [mode, symptomMarker]);
+
   return (
     <div
       className={`anatomy-viewer ${regionSelectionEnabled ? "is-region-picker" : ""}`}
@@ -424,6 +492,12 @@ export function AnatomyViewer({
       <div className="viewer-hint" aria-hidden="true">
         {regionSelectionEnabled ? "拖曳旋轉 / 點身體選部位" : "拖曳旋轉 / 點選標記"}
       </div>
+      {symptomMarker ? (
+        <div className="viewer-legend" aria-label="模型標記圖例">
+          <span><i className="legend-dot legend-dot-symptom" />綠色圈：部位</span>
+          <span><i className="legend-dot legend-dot-acupoint" />白色點：穴位</span>
+        </div>
+      ) : null}
       <a
         className="model-credit"
         href={modelConfig.source}
@@ -449,8 +523,6 @@ function syncMarkerObjects(
   markerGroup.children.forEach((child) => {
     if (child instanceof THREE.Mesh) {
       child.geometry.dispose();
-      const materials = Array.isArray(child.material) ? child.material : [child.material];
-      materials.forEach((material) => material.dispose());
     }
   });
   markerGroup.clear();
@@ -460,11 +532,17 @@ function syncMarkerObjects(
 
   points.forEach((point) => {
     const isActive = point.id === activePointId;
+    const geometry = getAcupointGeometry(point.id);
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(isActive ? markerRadius.active : markerRadius.idle, 32, 24),
       isActive ? materials.markerActive : materials.marker,
     );
-    const anchor = new THREE.Vector3(point.position.x, point.position.y, point.position.z);
+    const calibratedPosition = geometry?.position ?? point.position;
+    const anchor = new THREE.Vector3(
+      calibratedPosition.x,
+      calibratedPosition.y,
+      calibratedPosition.z,
+    );
     mesh.position.copy(anchor);
     mesh.userData.pointId = point.id;
     markerMeshes.push(mesh);
@@ -477,15 +555,176 @@ function syncMarkerObjects(
         8,
         38,
       ),
-      isActive ? materials.markerActive : materials.marker,
+      isActive ? materials.markerRingActive : materials.markerRing,
     );
     ring.position.copy(mesh.position);
     ring.lookAt(camera.position);
     ring.userData.pointId = point.id;
     markerMeshes.push(ring);
     markerGroup.add(ring);
-    markerRecords.push({ pointId: point.id, mesh, ring, anchor });
+    const calibratedDirection = geometry?.surfaceDirection ?? calibratedPosition;
+    const surfaceDirection = new THREE.Vector3(
+      calibratedDirection.x,
+      calibratedDirection.y,
+      calibratedDirection.z,
+    ).normalize();
+    markerRecords.push({
+      pointId: point.id,
+      mesh,
+      ring,
+      anchor,
+      surfaceDirection,
+      projectionDistance: geometry?.projectionDistance,
+    });
   });
+}
+
+function syncSymptomMarker(viewerState: ViewerState, marker: SymptomMarker | undefined) {
+  viewerState.symptomGroup.children.forEach((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.geometry.dispose();
+    }
+  });
+  viewerState.symptomGroup.clear();
+  viewerState.symptomRecord = null;
+  viewerState.symptomPath = null;
+  viewerState.symptomGroup.visible = false;
+
+  if (!marker) {
+    return;
+  }
+
+  const anchor = new THREE.Vector3(marker.position.x, marker.position.y, marker.position.z);
+  const direction = marker.surfaceDirection
+    ? new THREE.Vector3(
+        marker.surfaceDirection.x,
+        marker.surfaceDirection.y,
+        marker.surfaceDirection.z,
+      ).normalize()
+    : anchor.clone().normalize();
+
+  if (marker.path && marker.path.length >= 2) {
+    const anchors = marker.path.map(
+      (point) => new THREE.Vector3(point.x, point.y, point.z),
+    );
+    const curve = new THREE.CatmullRomCurve3(anchors);
+    const pathMesh = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, 32, 0.012, 10, false),
+      viewerState.materials.symptom,
+    );
+    viewerState.symptomGroup.add(pathMesh);
+    viewerState.symptomPath = {
+      anchors,
+      direction,
+      projectionDistance: marker.projectionDistance,
+      mesh: pathMesh,
+    };
+    viewerState.symptomRecord = {
+      pointId: "symptom-location",
+      mesh: pathMesh,
+      ring: pathMesh,
+      anchor,
+      surfaceDirection: direction,
+      snapToSurface: false,
+    };
+    viewerState.symptomGroup.visible = true;
+    return;
+  }
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.014, 24, 18),
+    viewerState.materials.symptom,
+  );
+  mesh.position.copy(anchor);
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.09, 0.008, 10, 48),
+    viewerState.materials.symptom,
+  );
+  ring.position.copy(anchor);
+  viewerState.symptomGroup.add(mesh, ring);
+  viewerState.symptomRecord = {
+    pointId: "symptom-location",
+    mesh,
+    ring,
+    anchor,
+    surfaceDirection: direction,
+    projectionDistance: marker.projectionDistance,
+    snapToSurface: Boolean(marker.surfaceDirection),
+  };
+  viewerState.symptomGroup.visible = true;
+}
+
+function snapSymptomMarker(viewerState: ViewerState, model: THREE.Object3D) {
+  if (viewerState.symptomPath) {
+    snapSymptomPathToModel(viewerState, model);
+    return;
+  }
+  const marker = viewerState.symptomRecord;
+  if (!marker) {
+    return;
+  }
+  if (!marker.snapToSurface) {
+    viewerState.symptomGroup.visible = true;
+    return;
+  }
+  snapMarkersToModelSurface(
+    viewerState.modelRoot,
+    viewerState.symptomGroup,
+    model,
+    [marker],
+  );
+}
+
+function snapSymptomPathToModel(viewerState: ViewerState, model: THREE.Object3D) {
+  const path = viewerState.symptomPath;
+  if (!path) {
+    return;
+  }
+
+  const modelMeshes: THREE.Mesh[] = [];
+  model.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      modelMeshes.push(child);
+    }
+  });
+  if (!modelMeshes.length) {
+    return;
+  }
+
+  viewerState.modelRoot.updateMatrixWorld(true);
+  viewerState.symptomGroup.updateMatrixWorld(true);
+  model.updateMatrixWorld(true);
+  const sphere = new THREE.Sphere();
+  new THREE.Box3().setFromObject(model).getBoundingSphere(sphere);
+  const castDistance =
+    path.projectionDistance ?? Math.min(Math.max(sphere.radius * 0.55, 0.7), 1.15);
+  const directionWorld = path.direction
+    .clone()
+    .transformDirection(viewerState.modelRoot.matrixWorld)
+    .normalize();
+  const raycaster = new THREE.Raycaster();
+  const projected = path.anchors.map((anchor) => {
+    const anchorWorld = viewerState.symptomGroup.localToWorld(anchor.clone());
+    const origin = anchorWorld
+      .clone()
+      .add(directionWorld.clone().multiplyScalar(castDistance));
+    raycaster.set(origin, directionWorld.clone().negate());
+    const hit = raycaster.intersectObjects(modelMeshes, false)[0];
+    return hit
+      ? viewerState.symptomGroup.worldToLocal(hit.point.clone()).add(
+          path.direction.clone().multiplyScalar(0.012),
+        )
+      : anchor;
+  });
+
+  path.mesh.geometry.dispose();
+  path.mesh.geometry = new THREE.TubeGeometry(
+    new THREE.CatmullRomCurve3(projected),
+    32,
+    0.012,
+    10,
+    false,
+  );
+  viewerState.symptomGroup.visible = true;
 }
 
 function rotateModelTowardAnchor(
@@ -661,19 +900,30 @@ function snapMarkersToModelSurface(
   const zAxis = new THREE.Vector3(0, 0, 1);
 
   markers.forEach((marker) => {
-    const outwardLocal = marker.anchor.clone().sub(centerLocal);
-    if (outwardLocal.lengthSq() < 0.0001) {
-      outwardLocal.set(0, 0, 1);
-    }
-    outwardLocal.normalize();
-
+    const anchorWorld = markerGroup.localToWorld(marker.anchor.clone());
+    const outwardLocal = marker.surfaceDirection.clone().normalize();
     const outwardWorld = outwardLocal.clone().transformDirection(modelRoot.matrixWorld).normalize();
-    const originWorld = centerWorld
+    const localCastDistance =
+      marker.projectionDistance ?? Math.min(Math.max(sphere.radius * 0.55, 0.7), 1.15);
+    const originWorld = anchorWorld
       .clone()
-      .add(outwardWorld.clone().multiplyScalar(sphere.radius * 2.2 + 0.35));
+      .add(outwardWorld.clone().multiplyScalar(localCastDistance));
 
     raycaster.set(originWorld, outwardWorld.clone().negate());
-    const hit = raycaster.intersectObjects(modelMeshes, false)[0];
+    let hit = raycaster.intersectObjects(modelMeshes, false)[0];
+    if (!hit) {
+      const radialLocal = marker.anchor.clone().sub(centerLocal);
+      if (radialLocal.lengthSq() < 0.0001) {
+        radialLocal.set(0, 0, 1);
+      }
+      radialLocal.normalize();
+      const radialWorld = radialLocal.transformDirection(modelRoot.matrixWorld).normalize();
+      const radialOrigin = centerWorld
+        .clone()
+        .add(radialWorld.clone().multiplyScalar(sphere.radius * 2.2 + 0.35));
+      raycaster.set(radialOrigin, radialWorld.clone().negate());
+      hit = raycaster.intersectObjects(modelMeshes, false)[0];
+    }
     if (!hit) {
       return;
     }

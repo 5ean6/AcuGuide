@@ -22,12 +22,15 @@
   "files": [
     "src/types.ts",
     "src/data/acupoints.ts",
+    "src/data/acupointGeometry.ts",
+    "src/data/symptomLocations.ts",
     "src/lib/bodyRegions.ts",
+    "src/lib/faceAlignment.ts",
+    "src/lib/acupointTracking.ts",
     "src/lib/pressGuidance.ts",
     "src/lib/matcher.ts",
     "src/lib/recommender.ts",
     "src/lib/safety.ts",
-    "src/lib/confidence.ts",
     "src/lib/demoFlow.ts",
     "src/lib/feedback.ts"
   ]

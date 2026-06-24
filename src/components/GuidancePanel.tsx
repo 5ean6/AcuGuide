@@ -1,7 +1,7 @@
-import { ArrowLeft, LocateFixed, RotateCcw } from "lucide-react";
+import { ArrowLeft, ExternalLink, LocateFixed, RotateCcw } from "lucide-react";
 import type { ReactNode } from "react";
 import { safetyNote } from "../data/acupoints";
-import { confidenceLabel } from "../lib/confidence";
+import { getAcupointGeometry } from "../data/acupointGeometry";
 import type { AcupointRecommendation, CunCalibration, PointMatch } from "../types";
 import { PressureCoach } from "./PressureCoach";
 import { RecommendationPanel } from "./RecommendationPanel";
@@ -34,6 +34,7 @@ export function GuidancePanel({
   recommendation,
 }: GuidancePanelProps) {
   const activePoint = points.find((point) => point.id === activePointId) ?? points[0];
+  const activeGeometry = activePoint ? getAcupointGeometry(activePoint.id) : undefined;
   const calibrationLabel =
     calibration.method === "hand_landmarker" && calibration.confidence > 0
       ? `1 寸 ≈ ${Math.round(calibration.pixelsPerCun)} px`
@@ -64,12 +65,23 @@ export function GuidancePanel({
           </div>
           <h2>{activePoint.name}</h2>
           <p>{activePoint.location}</p>
-          <div
-            className={`ar-anchor-card ar-anchor-${activePoint.ar.confidence.toLowerCase()}`}
-          >
-            <span>{confidenceLabel(activePoint.ar.confidence)}</span>
-            <strong>{activePoint.ar.enabled ? "可鏡頭輔助" : "先保留於 3D 指引"}</strong>
-            <small>{activePoint.ar.note}</small>
+          {activeGeometry ? (
+            <div className="point-anatomy-meta">
+              <span>
+                {activeGeometry.region} · {surfaceLabel(activeGeometry.surface)}
+              </span>
+              {activeGeometry.referenceUrl ? (
+                <a href={activeGeometry.referenceUrl} target="_blank" rel="noreferrer">
+                  穴位參考
+                  <ExternalLink size={13} strokeWidth={2} aria-hidden="true" />
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="ar-anchor-card">
+            <LocateFixed size={17} strokeWidth={2} aria-hidden="true" />
+            <strong>MediaPipe 即時穴位定位</strong>
+            <small>{activePoint.ar.strategy}</small>
           </div>
           <dl>
             <div>
@@ -143,4 +155,13 @@ export function GuidancePanel({
       </div>
     </aside>
   );
+}
+
+function surfaceLabel(surface: "front" | "back" | "side" | "top") {
+  return {
+    front: "身體前側",
+    back: "身體後側",
+    side: "身體側面",
+    top: "上方表面",
+  }[surface];
 }

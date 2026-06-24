@@ -13,6 +13,7 @@ import {
   type NormalizedLandmark,
   PoseLandmarker,
 } from "@mediapipe/tasks-vision";
+import { getBodyAcupointLandmark } from "../lib/acupointTracking";
 
 type TrackingStatus = "idle" | "loading" | "running" | "error";
 
@@ -620,24 +621,8 @@ function getBodyTargetPoint(
   const pose = result.poseLandmarks[0];
   const leftHand = result.leftHandLandmarks[0];
   const rightHand = result.rightHandLandmarks[0];
-
-  if (targetPointId === "hegu") {
-    return handPoint(leftHand, 2, 5, 0.55, cover) ?? handPoint(rightHand, 2, 5, 0.55, cover);
-  }
-
-  if (targetPointId === "neiguan") {
-    return neiguanPoint(leftHand, cover) ?? neiguanPoint(rightHand, cover);
-  }
-
-  if (targetPointId === "quchi") {
-    return posePoint(pose?.[13], cover) ?? posePoint(pose?.[14], cover);
-  }
-
-  if (targetPointId === "zusanli") {
-    return legOffsetPoint(pose?.[25], pose?.[27], cover) ?? legOffsetPoint(pose?.[26], pose?.[28], cover);
-  }
-
-  return undefined;
+  const target = getBodyAcupointLandmark(targetPointId, { pose, leftHand, rightHand });
+  return target ? landmarkToCanvas(target, cover) : undefined;
 }
 
 function detectBodyTargetContact(
@@ -712,73 +697,6 @@ function drawTargetMarker(
   ctx.restore();
 }
 
-function handPoint(
-  landmarks: NormalizedLandmark[] | undefined,
-  firstIndex: number,
-  secondIndex: number,
-  amount: number,
-  cover: CoverRect,
-) {
-  const first = landmarks?.[firstIndex];
-  const second = landmarks?.[secondIndex];
-  if (!first || !second) {
-    return undefined;
-  }
-
-  return landmarkToCanvas(interpolateLandmark(first, second, amount), cover);
-}
-
-function neiguanPoint(landmarks: NormalizedLandmark[] | undefined, cover: CoverRect) {
-  const wrist = landmarks?.[0];
-  const middle = landmarks?.[9];
-  if (!wrist || !middle) {
-    return undefined;
-  }
-
-  return landmarkToCanvas(
-    {
-      x: wrist.x - (middle.x - wrist.x) * 0.65,
-      y: wrist.y - (middle.y - wrist.y) * 0.65,
-      z: wrist.z - ((middle.z ?? 0) - (wrist.z ?? 0)) * 0.65,
-      visibility: Math.min(wrist.visibility ?? 1, middle.visibility ?? 1),
-    },
-    cover,
-  );
-}
-
-function posePoint(landmark: NormalizedLandmark | undefined, cover: CoverRect) {
-  if (!landmark || !isVisible(landmark)) {
-    return undefined;
-  }
-
-  return landmarkToCanvas(landmark, cover);
-}
-
-function legOffsetPoint(
-  knee: NormalizedLandmark | undefined,
-  ankle: NormalizedLandmark | undefined,
-  cover: CoverRect,
-) {
-  if (!knee || !ankle || !isVisible(knee) || !isVisible(ankle)) {
-    return undefined;
-  }
-
-  return landmarkToCanvas(interpolateLandmark(knee, ankle, 0.28), cover);
-}
-
-function interpolateLandmark(
-  first: NormalizedLandmark,
-  second: NormalizedLandmark,
-  amount: number,
-): NormalizedLandmark {
-  return {
-    x: first.x + (second.x - first.x) * amount,
-    y: first.y + (second.y - first.y) * amount,
-    z: (first.z ?? 0) + ((second.z ?? 0) - (first.z ?? 0)) * amount,
-    visibility: Math.min(first.visibility ?? 1, second.visibility ?? 1),
-  };
-}
-
 function roundRect(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -811,7 +729,7 @@ function getCoverRect(canvas: HTMLCanvasElement, video: HTMLVideoElement): Cover
   };
 }
 
-function landmarkToCanvas(landmark: NormalizedLandmark, cover: CoverRect) {
+function landmarkToCanvas(landmark: { x: number; y: number }, cover: CoverRect) {
   return {
     x: cover.x + (1 - landmark.x) * cover.width,
     y: cover.y + landmark.y * cover.height,

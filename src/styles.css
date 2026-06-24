@@ -521,6 +521,38 @@ input:focus-visible {
   font-size: 13px;
 }
 
+.face-alignment-guide {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid rgba(18, 20, 17, 0.2);
+  border-radius: 8px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 18px rgba(18, 20, 17, 0.1);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  transform: translateX(-50%);
+}
+
+.face-alignment-guide svg {
+  flex: 0 0 auto;
+}
+
+.face-alignment-aligned {
+  border-color: rgba(47, 111, 96, 0.4);
+  color: var(--accent);
+  background: rgba(237, 246, 242, 0.94);
+}
+
 .pose-readout {
   display: grid;
   gap: 5px;
@@ -677,6 +709,46 @@ input:focus-visible {
   color: var(--muted);
   background: rgba(255, 255, 255, 0.78);
   font-size: 12px;
+}
+
+.viewer-legend {
+  position: absolute;
+  z-index: 3;
+  bottom: 18px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid rgba(216, 217, 209, 0.9);
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.84);
+  font-size: 11px;
+  font-weight: 700;
+  transform: translateX(-50%);
+}
+
+.viewer-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.legend-dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  background: #fff;
+}
+
+.legend-dot-symptom {
+  border: 3px solid var(--accent);
+  background: transparent;
 }
 
 .anatomy-viewer.is-region-picker .viewer-hint {
@@ -1308,6 +1380,29 @@ input:focus-visible {
   color: var(--muted);
 }
 
+.point-anatomy-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -4px 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.point-anatomy-meta a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.point-anatomy-meta a:hover {
+  text-decoration: underline;
+}
+
 .ar-anchor-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -1319,19 +1414,11 @@ input:focus-visible {
   background: rgba(247, 247, 244, 0.74);
 }
 
-.ar-anchor-card span {
+.ar-anchor-card > svg {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 42px;
-  min-height: 26px;
-  padding: 0 8px;
-  border-radius: 999px;
-  color: var(--surface);
-  background: var(--ink);
-  font-size: 12px;
-  font-weight: 800;
-  white-space: nowrap;
+  color: var(--accent);
 }
 
 .ar-anchor-card strong {
@@ -1344,16 +1431,6 @@ input:focus-visible {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
-}
-
-.ar-anchor-a span,
-.ar-anchor-b span {
-  background: var(--accent);
-}
-
-.ar-anchor-c span,
-.ar-anchor-d span {
-  background: var(--warning);
 }
 
 .active-point dl {

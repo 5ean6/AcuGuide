@@ -31,6 +31,7 @@ npm run dev
 npm run typecheck
 npm run lint
 npm test
+npm run verify:geometry
 npm run test:ui
 npm run build
 npm run clean
@@ -80,3 +81,5 @@ Open `http://127.0.0.1:5173/`.
 ### Demo Boundaries
 
 RAG and Gemma integration are demonstration features. Browser AR is a MediaPipe proof of concept and does not represent production iOS ARKit, TrueDepth, or LiDAR accuracy. AcuGuide is not a substitute for medical diagnosis.
+
+`npm run verify:geometry` loads the actual GLTF meshes and checks that every calibrated acupoint reaches its intended model surface.

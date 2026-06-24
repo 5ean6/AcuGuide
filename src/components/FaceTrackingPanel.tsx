@@ -1,7 +1,11 @@
 import {
+  Check,
   Camera,
   Loader2,
   LocateFixed,
+  MoveHorizontal,
+  RotateCcw,
+  ScanFace,
   ShieldCheck,
   VideoOff,
 } from "lucide-react";
@@ -13,6 +17,8 @@ import {
   type FaceLandmarkerResult,
   type NormalizedLandmark,
 } from "@mediapipe/tasks-vision";
+import { getFaceAlignment, type FaceAlignmentState } from "../lib/faceAlignment";
+import { faceAcupointLayouts } from "../lib/acupointTracking";
 
 type TrackingStatus = "idle" | "loading" | "running" | "error";
 
@@ -21,6 +27,7 @@ type FaceSummary = {
   instruction: string;
   faceCoverage: number;
   centerOffset: number;
+  alignment: FaceAlignmentState;
 };
 
 type FaceTrackingPanelProps = {
@@ -46,25 +53,9 @@ type CanvasPoint = {
   y: number;
 };
 
-type TargetLayout = {
-  x: number;
-  y: number;
-};
-
 const WASM_ROOT = "/mediapipe/wasm";
 const FACE_MODEL_PATH = "/models/mediapipe/face_landmarker.task";
 const HAND_MODEL_PATH = "/models/mediapipe/hand_landmarker.task";
-const FACE_TARGET_LAYOUT: Record<string, TargetLayout> = {
-  yintang: { x: 0.5, y: 0.3 },
-  jingming: { x: 0.47, y: 0.4 },
-  zanzhu: { x: 0.43, y: 0.32 },
-  sizhukong: { x: 0.68, y: 0.34 },
-  tongziliao: { x: 0.7, y: 0.42 },
-  sibai: { x: 0.58, y: 0.45 },
-  taiyang: { x: 0.78, y: 0.37 },
-  yingxiang: { x: 0.58, y: 0.54 },
-  quanliao: { x: 0.66, y: 0.52 },
-};
 const FACE_CONNECTION_GROUPS = [
   FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
   FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
@@ -342,6 +333,16 @@ export function FaceTrackingPanel({
             <span>相機尚未開啟</span>
           </div>
         ) : null}
+        {isRunning ? (
+          <div
+            className={`face-alignment-guide face-alignment-${summary.alignment}`}
+            role="status"
+            aria-live="polite"
+          >
+            {alignmentIcon(summary.alignment)}
+            <span>{summary.instruction}</span>
+          </div>
+        ) : null}
       </div>
 
       <div className="pose-readout">
@@ -388,6 +389,7 @@ function createIdleSummary(targetLabel?: string): FaceSummary {
       : "開啟鏡頭後，請讓臉部正面進入畫面",
     faceCoverage: 0,
     centerOffset: 0,
+    alignment: "searching",
   };
 }
 
@@ -611,17 +613,22 @@ function analyzeFace(
   const box = getCanvasLandmarkBox(landmarks, cover);
   const faceCoverage = clamp(Math.max(box.width / canvas.width, box.height / canvas.height), 0, 1);
   const centerOffset = ((box.x + box.width / 2 - canvas.width / 2) / canvas.width) * 100;
+  const faceAlignment = getFaceAlignment(landmarks);
 
-  let instruction = targetLabel
-    ? `${targetLabel} 的臉部區域已進入畫面`
-    : "臉部定位完成，可作為穴位 AR 指引";
+  let instruction = faceAlignment.instruction;
+  let alignment = faceAlignment.state;
 
   if (Math.abs(centerOffset) > 11) {
     instruction = "請把臉移到畫面中央";
+    alignment = "position";
   } else if (faceCoverage < 0.32) {
     instruction = "可以稍微靠近鏡頭";
+    alignment = "position";
   } else if (faceCoverage > 0.88) {
     instruction = "請稍微退後，避免臉部超出畫面";
+    alignment = "position";
+  } else if (faceAlignment.state === "aligned" && targetLabel) {
+    instruction = `${targetLabel} 已對準，可開始按壓`;
   }
 
   return {
@@ -629,7 +636,21 @@ function analyzeFace(
     instruction,
     faceCoverage,
     centerOffset,
+    alignment,
   };
+}
+
+function alignmentIcon(alignment: FaceAlignmentState) {
+  if (alignment === "turn") {
+    return <MoveHorizontal size={18} strokeWidth={2} aria-hidden="true" />;
+  }
+  if (alignment === "level") {
+    return <RotateCcw size={18} strokeWidth={2} aria-hidden="true" />;
+  }
+  if (alignment === "aligned") {
+    return <Check size={18} strokeWidth={2.2} aria-hidden="true" />;
+  }
+  return <ScanFace size={18} strokeWidth={2} aria-hidden="true" />;
 }
 
 function getTargetPoint(
@@ -637,7 +658,7 @@ function getTargetPoint(
   cover: CoverRect,
   targetPointId: string,
 ) {
-  const layout = FACE_TARGET_LAYOUT[targetPointId];
+  const layout = faceAcupointLayouts[targetPointId];
   if (!layout) {
     return undefined;
   }

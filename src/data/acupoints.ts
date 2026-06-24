@@ -126,8 +126,6 @@ export const guidePoints: GuidePoint[] = [
     priority: 8,
     source: "Demo 初始資料",
     ar: {
-      enabled: true,
-      confidence: "A",
       detector: "face",
       strategy: "FaceMesh 眉心中線錨點",
       landmarkIndices: [9, 151],
@@ -148,8 +146,6 @@ export const guidePoints: GuidePoint[] = [
     priority: 10,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: true,
-      confidence: "A",
       detector: "face",
       strategy: "FaceMesh 內眼角 landmark",
       landmarkIndices: [133, 362],
@@ -170,8 +166,6 @@ export const guidePoints: GuidePoint[] = [
     priority: 10,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: true,
-      confidence: "A",
       detector: "face",
       strategy: "FaceMesh 眉頭與內眼角上方",
       landmarkIndices: [55, 285, 133, 362],
@@ -192,8 +186,6 @@ export const guidePoints: GuidePoint[] = [
     priority: 8,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: true,
-      confidence: "A",
       detector: "face",
       strategy: "FaceMesh 眉尾 landmark",
       landmarkIndices: [70, 300],
@@ -214,8 +206,6 @@ export const guidePoints: GuidePoint[] = [
     priority: 9,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: true,
-      confidence: "B",
       detector: "face",
       strategy: "FaceMesh 外眼角加 0.5 寸外側偏移",
       landmarkIndices: [33, 263],
@@ -236,8 +226,6 @@ export const guidePoints: GuidePoint[] = [
     priority: 10,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: true,
-      confidence: "B",
       detector: "face",
       strategy: "FaceMesh 瞳孔下方加眶下偏移",
       landmarkIndices: [159, 386, 145, 374],
@@ -258,8 +246,6 @@ export const guidePoints: GuidePoint[] = [
     priority: 8,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: true,
-      confidence: "B",
       detector: "face",
       strategy: "FaceMesh 外眼角與眉尾中點加 1 寸外後方偏移",
       landmarkIndices: [33, 263, 70, 300],
@@ -280,8 +266,6 @@ export const guidePoints: GuidePoint[] = [
     priority: 8,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: true,
-      confidence: "B",
       detector: "face",
       strategy: "FaceMesh 外眼角直下到顴骨下緣估算",
       landmarkIndices: [33, 263, 50, 280, 205, 425],
@@ -302,8 +286,6 @@ export const guidePoints: GuidePoint[] = [
     priority: 9,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: true,
-      confidence: "A",
       detector: "face",
       strategy: "FaceMesh 鼻翼外側與鼻唇溝",
       landmarkIndices: [129, 358, 98, 327],
@@ -324,12 +306,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 8,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "face",
-      strategy: "FaceMesh 顴弓到下頜切跡粗估",
+      strategy: "FaceMesh 顴弓與下顎輪廓比例定位",
       landmarkIndices: [234, 454, 172, 397],
-      note: "凹陷與張口狀態有關，第一版先以 3D 模型指引為主。",
+      note: "以顴弓與下顎輪廓比例定位，張口時位置會同步調整。",
     },
   },
   {
@@ -346,12 +326,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 7,
     source: "Demo 初始資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "face",
-      strategy: "FaceMesh 下顎角粗估",
+      strategy: "FaceMesh 下顎輪廓比例定位",
       landmarkIndices: [172, 397, 58, 288],
-      note: "咬肌隆起需要動態表情或觸摸確認，第一版先 3D 導引。",
+      note: "以下顎輪廓比例定位，咬緊時可搭配觸碰確認。",
     },
   },
   {
@@ -368,11 +346,9 @@ export const guidePoints: GuidePoint[] = [
     priority: 5,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: false,
-      confidence: "D",
       detector: "face",
-      strategy: "需髮際線判斷",
-      note: "MediaPipe 不穩定偵測髮際線，先保留於 RAG 與 3D 展示。",
+      strategy: "FaceMesh 額角與眉尾上方比例定位",
+      note: "以額角、眉尾與臉框上緣的相對比例推算頭維位置。",
     },
   },
   {
@@ -389,12 +365,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 6,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "face",
       strategy: "頭頂與耳尖連線估算",
       landmarkIndices: [10, 234, 454],
-      note: "頭頂常超出前鏡頭畫面，第一版以 3D 指引為主。",
+      note: "以臉部中線、頭頂與雙耳位置推算，需讓完整頭頂進入畫面。",
     },
   },
   {
@@ -411,12 +385,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 9,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "pose",
-      strategy: "耳後與肩線粗估",
+      strategy: "Pose 耳點到同側肩點的上段比例定位",
       landmarkIndices: [7, 8, 11, 12],
-      note: "後頸凹陷需要側面或背面視角，第一版先 3D 指引。",
+      note: "以耳後與肩線比例推算，側面或背面入鏡時定位較清楚。",
     },
   },
   {
@@ -433,12 +405,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 10,
     source: "Demo 初始資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "pose",
-      strategy: "Pose 肩點到頸部中點粗估",
+      strategy: "Pose 同側肩點與雙肩中點的中間位置",
       landmarkIndices: [11, 12],
-      note: "肩井位於肌肉凹陷，不是單一姿勢點，先以 3D 指引為主。",
+      note: "依肩峰到頸部中線的中點推算，保持雙肩自然放鬆。",
     },
   },
   {
@@ -455,8 +425,6 @@ export const guidePoints: GuidePoint[] = [
     priority: 7,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: true,
-      confidence: "B",
       detector: "pose",
       strategy: "Pose 肘點加外側偏移",
       landmarkIndices: [13, 14],
@@ -477,8 +445,6 @@ export const guidePoints: GuidePoint[] = [
     priority: 8,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: true,
-      confidence: "B",
       detector: "hand",
       strategy: "HandLandmarker 拇指與食指掌骨間",
       landmarkIndices: [2, 5],
@@ -499,12 +465,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 8,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: false,
-      confidence: "D",
       detector: "pose",
-      strategy: "需背面脊椎與腰椎估算",
-      landmarkIndices: [23, 24],
-      note: "Pose 沒有腰椎棘突點，需背面掃描與人體比例模型。",
+      strategy: "Pose 肩髖中線下段加同側腰部偏移",
+      landmarkIndices: [11, 12, 23, 24],
+      note: "以肩髖軸估算第二腰椎高度，再向同側旁開定位。",
     },
   },
   {
@@ -521,12 +485,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 8,
     source: "Demo 初始資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "pose",
       strategy: "Pose 膝點後側估算",
       landmarkIndices: [25, 26],
-      note: "膝窩需背面或側面視角，第一版先 3D 指引。",
+      note: "以膝關節 Pose 點定位，背面或側面入鏡時確認膝窩中央。",
     },
   },
   {
@@ -543,12 +505,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 7,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "pose",
       strategy: "Pose 膝點加內上方 2 寸偏移",
-      landmarkIndices: [25, 26],
-      note: "需要左右腿側別與寸距校正，第一版先不疊 AR 點。",
+      landmarkIndices: [23, 24, 25, 26],
+      note: "由膝點朝髖點上移，再向身體中線偏移以定位大腿內側。",
     },
   },
   {
@@ -565,8 +525,6 @@ export const guidePoints: GuidePoint[] = [
     priority: 9,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: true,
-      confidence: "B",
       detector: "pose",
       strategy: "Pose 膝踝比例加膝下 3 寸偏移",
       landmarkIndices: [25, 26, 27, 28],
@@ -587,12 +545,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 7,
     source: "Demo 初始資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "pose",
       strategy: "Pose 膝踝後側比例估算",
       landmarkIndices: [25, 26, 27, 28],
-      note: "小腿後側凹陷需要背面視角，第一版先 3D 指引。",
+      note: "以膝踝連線中段定位，背面入鏡時對應小腿後側肌肉交界。",
     },
   },
   {
@@ -609,12 +565,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 10,
     source: "Demo 初始資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "pose",
       strategy: "Pose 肩髖中線推估上腹",
       landmarkIndices: [11, 12, 23, 24],
-      note: "MediaPipe 無肚臍點，第一版先 3D 與比例尺導引。",
+      note: "以雙肩與雙髖中線比例推算上腹正中位置。",
     },
   },
   {
@@ -631,12 +585,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 9,
     source: "Demo 初始資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "pose",
       strategy: "Pose 髖部中線加肚臍旁 2 寸",
-      landmarkIndices: [23, 24],
-      note: "需先建立肚臍與寸距，第一版先 3D 指引。",
+      landmarkIndices: [11, 12, 23, 24],
+      note: "由肩髖中線推算臍部高度，再向同側旁開比例定位。",
     },
   },
   {
@@ -653,12 +605,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 8,
     source: "Demo 初始資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "pose",
       strategy: "Pose 髖部中線加肚臍下方比例",
-      landmarkIndices: [23, 24],
-      note: "需肚臍基準與寸距校正，第一版先 3D 指引。",
+      landmarkIndices: [11, 12, 23, 24],
+      note: "由肩髖中線推算肚臍下方的腹部正中位置。",
     },
   },
   {
@@ -675,12 +625,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 8,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "pose",
       strategy: "Pose 髖部中線加臍下 3 寸",
-      landmarkIndices: [23, 24],
-      note: "MediaPipe 無肚臍 landmark，需後續加入腹部基準校正。",
+      landmarkIndices: [11, 12, 23, 24],
+      note: "以肩髖中線靠近骨盆上緣的位置推算臍下三寸。",
     },
   },
   {
@@ -697,12 +645,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 7,
     source: "Demo 初始資料",
     ar: {
-      enabled: true,
-      confidence: "B",
-      detector: "hand",
-      strategy: "HandLandmarker 手腕到前臂方向加 2 寸",
-      landmarkIndices: [0, 9],
-      note: "手腕點可偵測，2 寸距離需要手部比例尺。",
+      detector: "pose",
+      strategy: "Pose 肘腕連線靠近手腕處比例定位",
+      landmarkIndices: [13, 14, 15, 16],
+      note: "沿肘腕連線由手腕向上推算前臂掌側位置。",
     },
   },
   {
@@ -719,12 +665,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 8,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: false,
-      confidence: "C",
       detector: "pose",
       strategy: "Pose 踝點加內側上方 3 寸",
-      landmarkIndices: [27, 28],
-      note: "左右內踝側別與脛骨後緣判斷不穩，先保留為 3D 指引。",
+      landmarkIndices: [25, 26, 27, 28],
+      note: "由踝點朝膝點上移，再向身體中線偏移以定位小腿內側。",
     },
   },
   {
@@ -741,11 +685,10 @@ export const guidePoints: GuidePoint[] = [
     priority: 6,
     source: "使用者提供美容穴位資料",
     ar: {
-      enabled: false,
-      confidence: "D",
-      detector: "none",
-      strategy: "需要足部細部模型",
-      note: "Pose Landmarker 不提供蹠骨細節，需未來接足部模型或手動定位。",
+      detector: "pose",
+      strategy: "Pose 足跟到足尖連線的足背比例定位",
+      landmarkIndices: [29, 30, 31, 32],
+      note: "以足跟與足尖 landmarks 推算第一、二蹠骨間的足背位置。",
     },
   },
 ];

@@ -1,4 +1,4 @@
-import type { ArAnchorConfidence, FeatureModeId, PointMatch } from "../types";
+import type { FeatureModeId, PointMatch } from "../types";
 
 export const FEEDBACK_STORAGE_KEY = "acuguide.feedback.v1";
 
@@ -8,7 +8,6 @@ export type FeedbackRecord = {
   mode: FeatureModeId;
   query: string;
   pointIds: string[];
-  confidenceGrades: ArAnchorConfidence[];
   rating: number;
   note: string;
 };
@@ -31,7 +30,6 @@ export function createFeedbackRecord(input: {
     mode: input.mode,
     query: input.query,
     pointIds: input.points.map((point) => point.id),
-    confidenceGrades: input.points.map((point) => point.ar.confidence),
     rating: clampRating(input.rating),
     note: input.note?.trim() ?? "",
   };
@@ -90,7 +88,6 @@ function isFeedbackRecord(value: unknown): value is FeedbackRecord {
     typeof record.mode === "string" &&
     typeof record.query === "string" &&
     Array.isArray(record.pointIds) &&
-    Array.isArray(record.confidenceGrades) &&
     typeof record.rating === "number" &&
     typeof record.note === "string"
   );

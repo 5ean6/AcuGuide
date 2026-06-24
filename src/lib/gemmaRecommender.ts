@@ -98,7 +98,7 @@ function buildPrompt(input: GemmaRecommendationInput) {
         `tags=${point.tags.join(", ")}`,
         `action=${point.action}`,
         `caution=${point.caution}`,
-        `ar=${point.ar.confidence} ${point.ar.strategy}`,
+        `tracking=${point.ar.detector} ${point.ar.strategy}`,
       ].join(" | "),
     )
     .join("\n");

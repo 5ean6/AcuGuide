@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { confidenceLabel } = require("../.tmp-tests/src/lib/confidence.js");
 const { nextDemoStage } = require("../.tmp-tests/src/lib/demoFlow.js");
 const {
   FEEDBACK_STORAGE_KEY,
@@ -15,6 +14,18 @@ const {
   evaluateSafety,
 } = require("../.tmp-tests/src/lib/safety.js");
 const { createBodyRegionPick } = require("../.tmp-tests/src/lib/bodyRegions.js");
+const { getFaceAlignment } = require("../.tmp-tests/src/lib/faceAlignment.js");
+const {
+  bodyTrackedPointIds,
+  faceAcupointLayouts,
+  getBodyAcupointLandmark,
+} = require("../.tmp-tests/src/lib/acupointTracking.js");
+const { guidePoints } = require("../.tmp-tests/src/data/acupoints.js");
+const {
+  acupointGeometry,
+  getAcupointGeometry,
+} = require("../.tmp-tests/src/data/acupointGeometry.js");
+const { getSymptomMarker } = require("../.tmp-tests/src/data/symptomLocations.js");
 const {
   getPressMotion,
   parsePressSeconds,
@@ -78,6 +89,93 @@ test("body model coordinates classify torso clicks as stomach region", () => {
   assert.match(pick.query, /中脘/);
 });
 
+test("face alignment detects turn and head tilt before AR guidance", () => {
+  const createFace = (noseX, rightEyeY = 0.4) => {
+    const landmarks = Array.from({ length: 264 }, () => ({ x: 0.5, y: 0.5 }));
+    landmarks[33] = { x: 0.35, y: 0.4 };
+    landmarks[263] = { x: 0.65, y: rightEyeY };
+    landmarks[1] = { x: noseX, y: 0.56 };
+    return landmarks;
+  };
+
+  assert.equal(getFaceAlignment(createFace(0.5)).state, "aligned");
+  assert.equal(getFaceAlignment(createFace(0.58)).state, "turn");
+  assert.equal(getFaceAlignment(createFace(0.5, 0.45)).state, "level");
+});
+
+test("all face and body acupoints have MediaPipe tracking definitions", () => {
+  assert.equal(Object.keys(faceAcupointLayouts).length, 13);
+  assert.equal(bodyTrackedPointIds.length, 16);
+  const trackedPointIds = new Set([
+    ...Object.keys(faceAcupointLayouts),
+    ...bodyTrackedPointIds,
+  ]);
+  assert.deepEqual(
+    guidePoints.map((point) => point.id).sort(),
+    [...trackedPointIds].sort(),
+  );
+
+  const pose = Array.from({ length: 33 }, (_, index) => ({
+    x: 0.25 + (index % 2) * 0.5,
+    y: 0.08 + index * 0.025,
+    z: 0,
+    visibility: 1,
+  }));
+  const hand = Array.from({ length: 21 }, (_, index) => ({
+    x: 0.35 + index * 0.008,
+    y: 0.5 + index * 0.006,
+    z: 0,
+    visibility: 1,
+  }));
+
+  bodyTrackedPointIds.forEach((pointId) => {
+    const target = getBodyAcupointLandmark(pointId, {
+      pose,
+      leftHand: hand,
+      rightHand: hand,
+    });
+    assert.ok(target, `${pointId} is missing a tracking target`);
+    assert.ok(Number.isFinite(target.x) && Number.isFinite(target.y));
+  });
+});
+
+test("every displayed acupoint has calibrated geometry and a projection direction", () => {
+  assert.equal(Object.keys(acupointGeometry).length, guidePoints.length);
+
+  guidePoints.forEach((point) => {
+    const geometry = getAcupointGeometry(point.id);
+    assert.ok(geometry, `${point.id} is missing calibrated geometry`);
+    const directionLength = Math.hypot(
+      geometry.surfaceDirection.x,
+      geometry.surfaceDirection.y,
+      geometry.surfaceDirection.z,
+    );
+    assert.ok(directionLength > 0.5, `${point.id} has an invalid projection direction`);
+  });
+});
+
+test("front and back body points project toward opposite model surfaces", () => {
+  const abdomen = getAcupointGeometry("zhongwan");
+  const lowerBack = getAcupointGeometry("shenshu");
+  const calfBack = getAcupointGeometry("chengshan");
+
+  assert.ok(abdomen.surfaceDirection.z < 0);
+  assert.ok(lowerBack.surfaceDirection.z > 0);
+  assert.ok(calfBack.surfaceDirection.z > 0);
+});
+
+test("preset goals expose a separate symptom marker from acupoint markers", () => {
+  const eyeSymptom = getSymptomMarker("face-eyelid-puffiness");
+  const backSymptom = getSymptomMarker("body-lower-back");
+  const nasolabialSymptom = getSymptomMarker("face-nasolabial");
+
+  assert.equal(eyeSymptom.label, "眼周疲勞位置");
+  assert.ok(eyeSymptom.surfaceDirection.z > 0);
+  assert.equal(backSymptom.label, "腰背緊繃位置");
+  assert.ok(backSymptom.surfaceDirection.z > 0);
+  assert.equal(nasolabialSymptom.path.length, 3);
+});
+
 test("pressure guidance parses duration and massage direction", () => {
   assert.equal(parsePressSeconds("15 秒 x 2"), 15);
   assert.equal(getPressMotion("由穴位向外輕推"), "outward");
@@ -98,13 +196,6 @@ test("pregnancy caution removes contraindicated candidate points", () => {
   assert.equal(assessment.severity, "caution");
   assert.ok(assessment.removedPointNames.includes("肩井"));
   assert.ok(safeResult.points.every((point) => !point.caution.includes("孕")));
-});
-
-test("A-D confidence labels are explicit text, not color-only", () => {
-  assert.match(confidenceLabel("A"), /即時追蹤/);
-  assert.match(confidenceLabel("B"), /關鍵點/);
-  assert.match(confidenceLabel("C"), /校正/);
-  assert.match(confidenceLabel("D"), /3D/);
 });
 
 test("demo flow stage transitions cover recommendation, calibration, completion, and restart", () => {

@@ -52,7 +52,7 @@ export function CompletionPanel({
         <div className="complete-point-list" role="list" aria-label="本次穴位">
           {points.map((point) => (
             <span key={point.id} role="listitem">
-              {point.name} · AR {point.ar.confidence}
+              {point.name} · MediaPipe 定位
             </span>
           ))}
         </div>

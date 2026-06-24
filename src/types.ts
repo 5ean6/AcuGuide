@@ -24,6 +24,28 @@ export type PointPosition = {
   z: number;
 };
 
+export type AcupointSurface = "front" | "back" | "side" | "top";
+
+export type AcupointLaterality = "midline" | "bilateral";
+
+export type AcupointGeometry = {
+  position: PointPosition;
+  surfaceDirection: PointPosition;
+  surface: AcupointSurface;
+  laterality: AcupointLaterality;
+  region: string;
+  referenceUrl?: string;
+  projectionDistance?: number;
+};
+
+export type SymptomMarker = {
+  label: string;
+  position: PointPosition;
+  surfaceDirection?: PointPosition;
+  projectionDistance?: number;
+  path?: PointPosition[];
+};
+
 export type BodyRegionPick = {
   id: BodyRegionId;
   label: string;
@@ -31,12 +53,8 @@ export type BodyRegionPick = {
   position: PointPosition;
 };
 
-export type ArAnchorConfidence = "A" | "B" | "C" | "D";
-
 export type ArAnchor = {
-  enabled: boolean;
-  confidence: ArAnchorConfidence;
-  detector: "face" | "pose" | "hand" | "none";
+  detector: "face" | "pose" | "hand";
   strategy: string;
   landmarkIndices?: number[];
   note: string;

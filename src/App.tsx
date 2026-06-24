@@ -13,6 +13,7 @@ import { IntentBar } from "./components/IntentBar";
 import { RecommendationPanel } from "./components/RecommendationPanel";
 import { SafetyAlertPanel } from "./components/SafetyAlertPanel";
 import { featureModes, guideGoals } from "./data/acupoints";
+import { getSymptomMarker } from "./data/symptomLocations";
 import { nextDemoStage } from "./lib/demoFlow";
 import {
   createFeedbackRecord,
@@ -99,6 +100,13 @@ export default function App() {
   const previewModeInfo =
     featureModes.find((item) => item.id === previewMode) ?? selectedMode;
   const displayedGoal = previewGoal ?? selectedGoal;
+  const modelSymptomMarker =
+    mode === "other" && selectedBodyRegion
+      ? {
+          label: `${selectedBodyRegion.label}症狀位置`,
+          position: selectedBodyRegion.position,
+        }
+      : getSymptomMarker(displayedGoal?.id);
   const typedIntent = intent.trim();
   const selectedBodyRegionQuery =
     stage === "select" && mode === "other" ? selectedBodyRegion?.query ?? "" : "";
@@ -171,11 +179,8 @@ export default function App() {
     0,
     previewPoints.findIndex((point) => point.id === activeId),
   );
-  const activePointSupportsAr = Boolean(activePoint?.ar.enabled);
   const activeTargetLabel = activePoint
-    ? `${activePoint.name} - ${activePoint.location} · AR ${activePoint.ar.confidence}${
-        activePointSupportsAr ? "" : "（先用 3D 指引）"
-      }`
+    ? `${activePoint.name} - ${activePoint.location}`
     : undefined;
 
   useEffect(() => {
@@ -503,6 +508,8 @@ export default function App() {
                 points={previewPoints}
                 activePointId={activeId}
                 focusPointId={previewGoal ? activeId : undefined}
+                symptomMarker={modelSymptomMarker}
+                focusSymptomMarker
                 regionSelectionEnabled={mode === "other" && stage === "select"}
                 onPointSelect={setActivePointId}
                 onBodyRegionSelect={handleBodyRegionSelect}
@@ -548,13 +555,13 @@ export default function App() {
             <Suspense fallback={<ModuleFallback label="AR 模組載入中" />}>
               {mode === "face" ? (
                 <FaceTrackingPanel
-                  targetPointId={activePointSupportsAr ? activePoint?.id : undefined}
+                  targetPointId={activePoint?.id}
                   targetLabel={activeTargetLabel}
                   onTargetContactChange={setIsTargetContact}
                 />
               ) : (
                 <BodyTrackingPanel
-                  targetPointId={activePointSupportsAr ? activePoint?.id : undefined}
+                  targetPointId={activePoint?.id}
                   targetLabel={activeTargetLabel}
                   onTargetContactChange={setIsTargetContact}
                 />
