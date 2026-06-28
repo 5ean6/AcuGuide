@@ -1768,6 +1768,31 @@ input:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .select-layout,
+  .guide-layout,
+  .calibration-view,
+  .complete-layout {
+    width: min(440px, 100%);
+    gap: 14px;
+  }
+
+  .app-select {
+    padding-bottom: 24px;
+  }
+
+  .select-layout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .model-surface {
+    order: 1;
+  }
+
+  .control-surface {
+    order: 2;
+  }
+
   .model-surface,
   .guide-model,
   .scan-stage {
@@ -1783,6 +1808,120 @@ input:focus-visible {
     padding: 20px;
   }
 
+  .control-surface {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .control-surface > .eyebrow,
+  .control-surface > h1,
+  .demo-boundary {
+    display: none;
+  }
+
+  .feature-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .feature-option {
+    min-height: auto;
+  }
+
+  .feature-option:not(.is-selected) {
+    gap: 0;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.78);
+  }
+
+  .feature-option:not(.is-selected) .goal-grid {
+    display: none;
+  }
+
+  .model-surface {
+    min-height: min(72vh, 640px);
+    aspect-ratio: 9 / 13;
+  }
+
+  .model-decision-panel {
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+
+  .recommendation-panel {
+    padding: 12px;
+  }
+
+  .recommendation-panel strong {
+    font-size: 14px;
+  }
+
+  .model-confirm-action {
+    min-height: 42px;
+  }
+
+  .surface-label {
+    top: 14px;
+    left: 14px;
+  }
+
+  .viewer-hint {
+    left: 14px;
+    bottom: 14px;
+  }
+
+  .viewer-legend {
+    right: 14px;
+    bottom: 14px;
+    left: auto;
+    transform: none;
+  }
+
+  .model-credit {
+    display: none;
+  }
+
+  .intent-bar {
+    position: static;
+    padding: 0 0 24px;
+    border-top: 0;
+    background: transparent;
+    backdrop-filter: none;
+  }
+
+  .intent-inner {
+    grid-template-columns: 1fr;
+    width: min(440px, 100%);
+    gap: 9px;
+  }
+
+  .intent-label {
+    width: 100%;
+  }
+
+  .guide-layout-ar {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-ar-surface {
+    min-height: auto;
+    padding: 14px;
+  }
+
+  .guide-ar-surface .camera-preview {
+    min-height: min(68vh, 620px);
+  }
+
+  .panel-model-preview {
+    min-height: 300px;
+  }
+
   .scale-controls {
     grid-column: auto;
   }
@@ -1795,7 +1934,9 @@ input:focus-visible {
 @media (max-width: 640px) {
   .app {
     padding-top: 76px;
-    padding-bottom: 156px;
+    padding-right: 10px;
+    padding-bottom: 22px;
+    padding-left: 10px;
   }
 
   .app-calibrate {
@@ -1814,8 +1955,15 @@ input:focus-visible {
     min-height: auto;
   }
 
+  .select-layout,
+  .guide-layout,
+  .calibration-view,
+  .complete-layout {
+    width: min(100%, 420px);
+  }
+
   .feature-option {
-    min-height: 146px;
+    min-height: auto;
   }
 
   .feature-main {
@@ -1830,7 +1978,31 @@ input:focus-visible {
   .guide-model,
   .scan-stage,
   .hand-calibration-stage {
-    min-height: 380px;
+    min-height: min(70vh, 560px);
+  }
+
+  .model-surface {
+    aspect-ratio: 9 / 13;
+  }
+
+  .feature-option.is-selected {
+    padding: 12px;
+  }
+
+  .feature-title {
+    font-size: 16px;
+  }
+
+  .feature-meta {
+    font-size: 12px;
+  }
+
+  .goal-chip {
+    min-height: 38px;
+  }
+
+  .goal-chip .goal-label {
+    font-size: 14px;
   }
 
   .hand-calibration-stage {
@@ -1845,17 +2017,18 @@ input:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .intent-inner {
-    grid-template-columns: 1fr;
-  }
-
-  .intent-label,
   .primary-action {
     width: 100%;
   }
 
   .viewer-hint {
-    bottom: 54px;
+    display: none;
+  }
+
+  .viewer-legend {
+    max-width: calc(100% - 28px);
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
   .pressure-coach-body {
@@ -1881,11 +2054,14 @@ input:focus-visible {
   }
 
   .model-decision-panel {
-    top: auto;
-    right: 14px;
-    bottom: 156px;
-    left: 14px;
-    width: auto;
+    top: 12px;
+    right: 12px;
+    bottom: auto;
+    left: 12px;
+  }
+
+  .guide-ar-surface .camera-preview {
+    min-height: min(64vh, 560px);
   }
 
   .calibration-actions,

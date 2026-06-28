@@ -1,0 +1,97 @@
+AcuGuide mobile native feedback handoff
+======================================
+
+Purpose
+-------
+The web version now includes best-effort interaction feedback:
+
+- Short Web Audio tones for taps, selections, contact detection, countdown, and completion.
+- navigator.vibrate() patterns for supported browsers / Android WebView.
+
+Important browser limits
+------------------------
+- iOS Safari does not reliably support navigator.vibrate().
+- Web Audio must be started by a user gesture, so silent mode, autoplay policy, or WebView settings may block sound.
+- The web app cannot access iPhone Taptic Engine directly without a native wrapper.
+
+Recommended native app work
+---------------------------
+If the app is packaged with Capacitor, Cordova, React Native, or a custom WKWebView shell, add native feedback hooks for these events:
+
+1. mode_select
+   - Trigger when user selects Face / Body pain / Wellness / Other.
+   - Suggested iOS feedback: UISelectionFeedbackGenerator.selectionChanged().
+
+2. goal_select
+   - Trigger when user taps a symptom / goal chip.
+   - Suggested iOS feedback: UISelectionFeedbackGenerator.selectionChanged().
+
+3. body_region_pick
+   - Trigger when user taps a body region on the 3D model.
+   - Suggested iOS feedback: UIImpactFeedbackGenerator(style: .medium).impactOccurred().
+
+4. acupoint_contact_start
+   - Trigger when MediaPipe detects the user's hand touching the target acupoint.
+   - Suggested iOS feedback: UIImpactFeedbackGenerator(style: .heavy).impactOccurred().
+   - Suggested sound: short soft tick, under 100 ms.
+
+5. countdown_tick
+   - Trigger during the final 3 seconds of a hold.
+   - Suggested iOS feedback: light impact, optional quiet tick sound.
+
+6. guide_complete
+   - Trigger when hold/massage step completes or user completes the guide.
+   - Suggested iOS feedback: UINotificationFeedbackGenerator.notificationOccurred(.success).
+
+7. safety_warning
+   - Trigger when the safety checker blocks a risky query.
+   - Suggested iOS feedback: UINotificationFeedbackGenerator.notificationOccurred(.warning).
+
+Possible bridge API
+-------------------
+Expose a native bridge function to the web layer:
+
+window.AcuGuideNativeFeedback?.emit(eventName)
+
+Supported event names:
+
+- "tap"
+- "mode_select"
+- "goal_select"
+- "body_region_pick"
+- "acupoint_contact_start"
+- "countdown_tick"
+- "guide_complete"
+- "safety_warning"
+
+iOS Swift example
+-----------------
+Use this as the native-side mapping concept:
+
+func emitAcuGuideFeedback(_ eventName: String) {
+    switch eventName {
+    case "tap":
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    case "mode_select", "goal_select":
+        UISelectionFeedbackGenerator().selectionChanged()
+    case "body_region_pick":
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    case "acupoint_contact_start":
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+    case "countdown_tick":
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    case "guide_complete":
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    case "safety_warning":
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+    default:
+        break
+    }
+}
+
+Sound notes
+-----------
+- Keep sounds short and soft.
+- Respect iOS mute/silent mode unless the product intentionally needs guidance audio.
+- Do not loop countdown sounds continuously; use only final ticks and completion cues.
+- Add a user-facing sound toggle and persist it if native sound is implemented.

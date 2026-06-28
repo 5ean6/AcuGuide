@@ -20,6 +20,7 @@ import {
   loadFeedbackRecords,
   saveFeedbackRecord,
 } from "./lib/feedback";
+import { playInteractionFeedback } from "./lib/interactionFeedback";
 import { recommendAcupoints } from "./lib/recommender";
 import {
   applySafetyToRecommendation,
@@ -189,6 +190,7 @@ export default function App() {
 
   function handleModeChange(nextMode: FeatureModeId) {
     const nextGoal = guideGoals.find((goal) => goal.mode === nextMode);
+    playInteractionFeedback("select");
     setMode(nextMode);
     setSelectedGoalId(nextGoal?.id ?? "");
     setPreviewGoalId("");
@@ -206,6 +208,7 @@ export default function App() {
       return;
     }
 
+    playInteractionFeedback("select");
     setMode(nextGoal.mode);
     setSelectedGoalId(nextGoal.id);
     setPreviewGoalId("");
@@ -223,6 +226,7 @@ export default function App() {
       return;
     }
 
+    playInteractionFeedback("success");
     const fixedRecommendation = recommendAcupoints({
       mode: goal.mode,
       query: goal.query,
@@ -240,9 +244,11 @@ export default function App() {
 
   function confirmPreviewedRecommendation() {
     if (isRecommending || safetyBlocksRecommendation || awaitingOtherBodyPick) {
+      playInteractionFeedback("warning");
       return;
     }
 
+    playInteractionFeedback("tap");
     if (submittedPoints && submittedRecommendation) {
       setStage(nextDemoStage("select", "confirmRecommendation"));
       return;
@@ -288,6 +294,7 @@ export default function App() {
   async function handleIntentSubmit() {
     const nextRegionQuery = mode === "other" ? selectedBodyRegion?.query ?? "" : "";
     const typedIntent = intent.trim();
+    playInteractionFeedback("tap");
     if (!typedIntent && !nextRegionQuery) {
       confirmPresetGoal();
       return;
@@ -301,6 +308,7 @@ export default function App() {
     const preliminarySafety = evaluateSafety(nextQuery);
 
     if (preliminarySafety.severity === "block") {
+      playInteractionFeedback("warning");
       const blockedRecommendation = createSafetyBlockedRecommendation({
         mode,
         query: nextQuery,
@@ -362,10 +370,12 @@ export default function App() {
   }
 
   function handleCalibrationDone() {
+    playInteractionFeedback("success");
     setStage(nextDemoStage("calibrate", "finishCalibration"));
   }
 
   function handleRestart() {
+    playInteractionFeedback("tap");
     setStage(nextDemoStage(stage, "restart"));
     setIntent("");
     setSubmittedQuery("");
@@ -378,10 +388,12 @@ export default function App() {
   }
 
   function handleCompleteGuide() {
+    playInteractionFeedback("success");
     setStage(nextDemoStage("guide", "completeGuide"));
   }
 
   function handleGuidePointSelect(pointId: string) {
+    playInteractionFeedback("select");
     setActivePointId(pointId);
   }
 
@@ -417,6 +429,7 @@ export default function App() {
     const nextQuery = [region.query, intent.trim()].filter(Boolean).join(" ");
     const nextSafety = evaluateSafety(nextQuery);
 
+    playInteractionFeedback("contact");
     setMode("other");
     setSelectedGoalId("other-model-pick");
     setSelectedBodyRegion(region);

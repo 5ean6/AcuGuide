@@ -9,7 +9,7 @@ echo Keep this window open while using the site.
 echo Press Ctrl+C here to stop the local server.
 echo.
 
-start "" "http://127.0.0.1:5173/"
-npm.cmd run dev -- --port 5173 --strictPort
+start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 3; Start-Process 'http://127.0.0.1:5173/'"
+npm.cmd run dev -- --port 5173 --strictPort --force
 
 pause

@@ -14,6 +14,7 @@ import {
   pressMotionLabel,
   type PressMotion,
 } from "../lib/pressGuidance";
+import { playInteractionFeedback, playTone } from "../lib/interactionFeedback";
 import type { PointMatch } from "../types";
 
 type PressureCoachProps = {
@@ -51,7 +52,7 @@ export function PressureCoach({ point, detectedContact }: PressureCoachProps) {
 
   useEffect(() => {
     if (soundEnabled && isPressing && !previousPressingRef.current) {
-      playTone(520, 0.08);
+      playInteractionFeedback("contact", { sound: true, vibrate: true });
     }
     previousPressingRef.current = isPressing;
   }, [isPressing, soundEnabled]);
@@ -61,7 +62,7 @@ export function PressureCoach({ point, detectedContact }: PressureCoachProps) {
       return;
     }
     if (remainingSeconds === 0) {
-      playTone(760, 0.18);
+      playInteractionFeedback("success", { sound: true, vibrate: true });
     } else if (isPressing && remainingSeconds <= 3) {
       playTone(620, 0.06);
     }
@@ -170,25 +171,4 @@ function MotionGuide({ motion }: { motion: PressMotion }) {
       <Icon size={24} strokeWidth={1.9} />
     </div>
   );
-}
-
-function playTone(frequency: number, duration: number) {
-  try {
-    const AudioContextClass = window.AudioContext;
-    const context = new AudioContextClass();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = "sine";
-    oscillator.frequency.value = frequency;
-    gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + duration);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + duration + 0.02);
-    oscillator.addEventListener("ended", () => void context.close());
-  } catch {
-    // Audio feedback is optional when browser autoplay policy blocks Web Audio.
-  }
 }
