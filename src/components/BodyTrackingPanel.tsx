@@ -6,6 +6,7 @@ import {
   VideoOff,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   FaceLandmarker,
   FilesetResolver,
@@ -13,8 +14,10 @@ import {
   type NormalizedLandmark,
   PoseLandmarker,
 } from "@mediapipe/tasks-vision";
+import { getAcupointGeometry } from "../data/acupointGeometry";
 import { getBodyAcupointLandmark } from "../lib/acupointTracking";
 import { assetPath } from "../lib/assetPaths";
+import { speakCue } from "../lib/speechCue";
 
 type TrackingStatus = "idle" | "loading" | "running" | "error";
 
@@ -33,6 +36,8 @@ type BodyTrackingPanelProps = {
   targetPointId?: string;
   targetLabel?: string;
   onTargetContactChange?: (contact: boolean) => void;
+  overlay?: ReactNode;
+  treatmentInstruction?: string;
 };
 
 type CombinedLandmarkers = {
@@ -80,6 +85,8 @@ export function BodyTrackingPanel({
   targetPointId,
   targetLabel,
   onTargetContactChange,
+  overlay,
+  treatmentInstruction,
 }: BodyTrackingPanelProps) {
   const previewRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -88,6 +95,7 @@ export function BodyTrackingPanel({
   const landmarkerRef = useRef<CombinedLandmarkers | null>(null);
   const targetRef = useRef({ targetPointId, targetLabel });
   const contactRef = useRef(false);
+  const spokenTargetRef = useRef("");
   const onTargetContactChangeRef = useRef(onTargetContactChange);
   const frameRef = useRef(0);
   const lastVideoTimeRef = useRef(-1);
@@ -101,6 +109,7 @@ export function BodyTrackingPanel({
 
   useEffect(() => {
     targetRef.current = { targetPointId, targetLabel };
+    spokenTargetRef.current = "";
     updateTargetContact(false);
   }, [targetLabel, targetPointId]);
 
@@ -113,6 +122,18 @@ export function BodyTrackingPanel({
       setSummary(createIdleSummary(targetLabel));
     }
   }, [isRunning, targetLabel]);
+
+  useEffect(() => {
+    if (!isRunning || !targetLabel) {
+      return;
+    }
+    const spokenKey = [targetPointId, targetLabel, treatmentInstruction].filter(Boolean).join("|");
+    if (spokenTargetRef.current === spokenKey) {
+      return;
+    }
+    spokenTargetRef.current = spokenKey;
+    speakCue(createTargetSpeechCue(targetLabel));
+  }, [isRunning, targetLabel, targetPointId, treatmentInstruction]);
 
   useEffect(() => {
     return () => {
@@ -335,6 +356,20 @@ export function BodyTrackingPanel({
           aria-label="相機來源"
         />
         <canvas ref={canvasRef} aria-hidden="true" />
+        {overlay ? <div className="camera-preview-overlay">{overlay}</div> : null}
+        {isRunning ? (
+          <div
+            className="face-alignment-guide face-alignment-position"
+            role="status"
+            aria-live="polite"
+          >
+            <LocateFixed size={18} strokeWidth={2} aria-hidden="true" />
+            <span>
+              <strong>{summary.instruction}</strong>
+              {treatmentInstruction ? <small>{treatmentInstruction}</small> : null}
+            </span>
+          </div>
+        ) : null}
         {!isRunning ? (
           <div className="camera-placeholder">
             <Camera size={30} strokeWidth={1.6} aria-hidden="true" />
@@ -395,6 +430,11 @@ function createIdleSummary(targetLabel?: string): PoseSummary {
     shoulderTilt: 0,
     bodyCoverage: 0,
   };
+}
+
+function createTargetSpeechCue(targetLabel: string) {
+  const [name, location] = targetLabel.split(" - ");
+  return [name, location].filter(Boolean).join("，");
 }
 
 function statusLabel(status: TrackingStatus) {
@@ -468,15 +508,15 @@ function drawHolistic(
   drawHandLandmarks(ctx, result.leftHandLandmarks[0], cover, "#2f6f60");
   drawHandLandmarks(ctx, result.rightHandLandmarks[0], cover, "#111412");
 
-  const target = targetPointId ? getBodyTargetPoint(result, cover, targetPointId) : undefined;
-  if (target) {
+  const targets = targetPointId ? getBodyTargetPoints(result, cover, targetPointId) : [];
+  if (targets.length) {
     if (targetContact) {
       ctx.save();
       ctx.fillStyle = "rgba(10, 18, 14, 0.14)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.restore();
     }
-    drawTargetMarker(ctx, target, targetLabel, targetContact);
+    targets.forEach((target) => drawTargetMarker(ctx, target, targetLabel, targetContact));
   }
 }
 
@@ -626,6 +666,22 @@ function getBodyTargetPoint(
   return target ? landmarkToCanvas(target, cover) : undefined;
 }
 
+function getBodyTargetPoints(
+  result: CombinedLandmarkResult,
+  cover: CoverRect,
+  targetPointId: string,
+) {
+  const [baseId, side] = targetPointId.split(":");
+  const geometry = getAcupointGeometry(targetPointId);
+  const targetIds =
+    geometry?.laterality === "bilateral" && side !== "left" && side !== "right"
+      ? [`${baseId}:left`, `${baseId}:right`]
+      : [targetPointId];
+  return targetIds
+    .map((id) => getBodyTargetPoint(result, cover, id))
+    .filter((point): point is CanvasPoint => Boolean(point));
+}
+
 function detectBodyTargetContact(
   result: CombinedLandmarkResult,
   cover: CoverRect,
@@ -636,8 +692,8 @@ function detectBodyTargetContact(
     return false;
   }
 
-  const target = getBodyTargetPoint(result, cover, targetPointId);
-  if (!target) {
+  const targets = getBodyTargetPoints(result, cover, targetPointId);
+  if (!targets.length) {
     return false;
   }
 
@@ -652,8 +708,10 @@ function detectBodyTargetContact(
   const baseThreshold = Math.max(24, Math.min(cover.width, cover.height) * 0.045);
   const threshold = wasContacting ? baseThreshold * 1.35 : baseThreshold;
 
-  return fingertips.some(
-    (fingertip) => Math.hypot(fingertip.x - target.x, fingertip.y - target.y) <= threshold,
+  return targets.some((target) =>
+    fingertips.some(
+      (fingertip) => Math.hypot(fingertip.x - target.x, fingertip.y - target.y) <= threshold,
+    ),
   );
 }
 

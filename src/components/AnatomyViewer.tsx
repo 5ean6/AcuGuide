@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { AcupointGeometry } from "../types";
 import { getAcupointGeometry } from "../data/acupointGeometry";
 import { createBodyRegionPick } from "../lib/bodyRegions";
 import { assetPath } from "../lib/assetPaths";
@@ -13,6 +14,7 @@ type AnatomyViewerProps = {
   focusPointId?: string;
   autoRotate?: boolean;
   symptomMarker?: SymptomMarker;
+  symptomTone?: "default" | "complete";
   focusSymptomMarker?: boolean;
   regionSelectionEnabled?: boolean;
   onPointSelect?: (id: string) => void;
@@ -74,6 +76,8 @@ type ViewerState = {
 
 const markerColor = new THREE.Color("#f7f7f4");
 const symptomMarkerColor = new THREE.Color("#2f6f60");
+const completeSymptomMarkerColor = new THREE.Color("#d6b33f");
+const completeSymptomEmissiveColor = new THREE.Color("#f1d978");
 const softMaterialColor = new THREE.Color("#ddd7cc");
 const markerRadius = {
   idle: 0.024,
@@ -139,6 +143,7 @@ export function AnatomyViewer({
   focusPointId,
   autoRotate = true,
   symptomMarker,
+  symptomTone = "default",
   focusSymptomMarker = false,
   regionSelectionEnabled = false,
   onPointSelect,
@@ -151,6 +156,7 @@ export function AnatomyViewer({
   const regionSelectionEnabledRef = useRef(regionSelectionEnabled);
   const viewerStateRef = useRef<ViewerState | null>(null);
   const modelConfig = modelConfigs[mode];
+  const isCompleteSymptomTone = symptomTone === "complete";
 
   useEffect(() => {
     onPointSelectRef.current = onPointSelect;
@@ -222,11 +228,13 @@ export function AnatomyViewer({
         metalness: 0.04,
       }),
       symptom: new THREE.MeshStandardMaterial({
-        color: symptomMarkerColor,
+        color: isCompleteSymptomTone ? completeSymptomMarkerColor : symptomMarkerColor,
         roughness: 0.24,
         metalness: 0.03,
-        emissive: new THREE.Color("#72b49e"),
-        emissiveIntensity: 0.45,
+        emissive: isCompleteSymptomTone
+          ? completeSymptomEmissiveColor
+          : new THREE.Color("#72b49e"),
+        emissiveIntensity: isCompleteSymptomTone ? 0.68 : 0.45,
       }),
     };
 
@@ -440,7 +448,7 @@ export function AnatomyViewer({
       disposeObject(scene);
       renderer.dispose();
     };
-  }, [autoRotate, focusSymptomMarker, mode, modelConfig]);
+  }, [autoRotate, focusSymptomMarker, isCompleteSymptomTone, mode, modelConfig]);
 
   useEffect(() => {
     const viewerState = viewerStateRef.current;
@@ -534,11 +542,20 @@ function syncMarkerObjects(
   points.forEach((point) => {
     const isActive = point.id === activePointId;
     const geometry = getAcupointGeometry(point.id);
+    const markerGeometries =
+      geometry?.laterality === "bilateral" && !point.side
+        ? [
+            mirrorGeometry(geometry, -1),
+            mirrorGeometry(geometry, 1),
+          ]
+        : [geometry];
+
+    markerGeometries.forEach((markerGeometry) => {
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(isActive ? markerRadius.active : markerRadius.idle, 32, 24),
       isActive ? materials.markerActive : materials.marker,
     );
-    const calibratedPosition = geometry?.position ?? point.position;
+    const calibratedPosition = markerGeometry?.position ?? point.position;
     const anchor = new THREE.Vector3(
       calibratedPosition.x,
       calibratedPosition.y,
@@ -563,7 +580,7 @@ function syncMarkerObjects(
     ring.userData.pointId = point.id;
     markerMeshes.push(ring);
     markerGroup.add(ring);
-    const calibratedDirection = geometry?.surfaceDirection ?? calibratedPosition;
+    const calibratedDirection = markerGeometry?.surfaceDirection ?? calibratedPosition;
     const surfaceDirection = new THREE.Vector3(
       calibratedDirection.x,
       calibratedDirection.y,
@@ -575,9 +592,24 @@ function syncMarkerObjects(
       ring,
       anchor,
       surfaceDirection,
-      projectionDistance: geometry?.projectionDistance,
+      projectionDistance: markerGeometry?.projectionDistance,
+    });
     });
   });
+}
+
+function mirrorGeometry(geometry: AcupointGeometry, sideSign: -1 | 1): AcupointGeometry {
+  return {
+    ...geometry,
+    position: {
+      ...geometry.position,
+      x: Math.abs(geometry.position.x) * sideSign,
+    },
+    surfaceDirection: {
+      ...geometry.surfaceDirection,
+      x: Math.abs(geometry.surfaceDirection.x) * sideSign,
+    },
+  };
 }
 
 function syncSymptomMarker(viewerState: ViewerState, marker: SymptomMarker | undefined) {

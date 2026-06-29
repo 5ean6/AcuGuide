@@ -111,7 +111,25 @@ export function PressureCoach({ point, detectedContact }: PressureCoachProps) {
       </div>
 
       <div className="pressure-coach-body">
-        <div className="pressure-timer" style={progressStyle}>
+        <div
+          className="pressure-timer"
+          role="button"
+          tabIndex={0}
+          style={progressStyle}
+          onPointerDown={beginManualContact}
+          onPointerUp={endManualContact}
+          onPointerCancel={endManualContact}
+          onPointerLeave={endManualContact}
+          onKeyDown={(event) => {
+            if (event.key === " " || event.key === "Enter") {
+              event.preventDefault();
+              beginManualContact();
+            }
+          }}
+          onKeyUp={endManualContact}
+          aria-label="Hold to simulate pressure"
+          data-testid="pressure-timer-button"
+        >
           <div className="pressure-pulse" aria-hidden="true" />
           <strong data-testid="pressure-countdown">
             {isComplete ? "完成" : remainingSeconds}
@@ -133,6 +151,7 @@ export function PressureCoach({ point, detectedContact }: PressureCoachProps) {
 
       <button
         className="pressure-hold-button"
+        hidden
         type="button"
         onPointerDown={beginManualContact}
         onPointerUp={endManualContact}

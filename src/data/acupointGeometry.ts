@@ -37,7 +37,28 @@ export const acupointGeometry: Record<string, AcupointGeometry> = {
 };
 
 export function getAcupointGeometry(id: string): AcupointGeometry | undefined {
-  return acupointGeometry[id];
+  const [baseId, side] = id.split(":");
+  const geometry = acupointGeometry[baseId ?? id];
+  if (!geometry || geometry.laterality !== "bilateral") {
+    return geometry;
+  }
+
+  if (side !== "left" && side !== "right") {
+    return geometry;
+  }
+
+  const sideSign = side === "right" ? 1 : -1;
+  return {
+    ...geometry,
+    position: {
+      ...geometry.position,
+      x: Math.abs(geometry.position.x) * sideSign,
+    },
+    surfaceDirection: {
+      ...geometry.surfaceDirection,
+      x: Math.abs(geometry.surfaceDirection.x) * sideSign,
+    },
+  };
 }
 
 function point(

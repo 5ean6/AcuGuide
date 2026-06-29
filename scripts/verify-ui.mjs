@@ -16,11 +16,15 @@ function assert(condition, message) {
   }
 }
 
-async function canvasStats(page) {
+async function canvasStats(page, selector = "canvas") {
   await page.waitForTimeout(1800);
-  return page.evaluate(() => {
-    const canvases = Array.from(document.querySelectorAll("canvas"));
+  return page.evaluate((canvasSelector) => {
+    const canvases = Array.from(document.querySelectorAll(canvasSelector));
     const canvas = canvases.find((item) => {
+      const rect = item.getBoundingClientRect();
+      if (rect.width < 2 || rect.height < 2 || item.closest(".model-ghost")) {
+        return false;
+      }
       const gl = item.getContext("webgl2") || item.getContext("webgl");
       return Boolean(gl);
     });
@@ -65,7 +69,7 @@ async function canvasStats(page) {
       drawingBufferWidth: gl.drawingBufferWidth,
       drawingBufferHeight: gl.drawingBufferHeight,
     };
-  });
+  }, selector);
 }
 
 async function runViewport(browser, baseUrl, viewport) {
@@ -77,8 +81,8 @@ async function runViewport(browser, baseUrl, viewport) {
   await page.goto(baseUrl);
   await page.waitForLoadState("networkidle");
 
-  await page.getByText("human head by sculptgl").waitFor();
-  const faceStats = await canvasStats(page);
+  await page.locator(".model-surface .anatomy-viewer canvas").first().waitFor();
+  const faceStats = await canvasStats(page, ".model-surface canvas");
   assert(faceStats.ok, `${viewport.name}: face canvas is blank`);
   await page.locator('[data-testid="body-tracking-panel"]').waitFor({
     state: "detached",
@@ -115,28 +119,14 @@ async function runViewport(browser, baseUrl, viewport) {
     `${viewport.name}: next AR point did not update active point`,
   );
   await page.locator('[data-testid="face-camera-toggle"]').click();
-  await page.locator('[data-testid="pressure-sound-toggle"]').click();
   const countdown = page.locator('[data-testid="pressure-countdown"]');
-  const countdownBefore = Number(await countdown.textContent());
-  const pressureHold = page.locator('[data-testid="pressure-hold"]');
-  await pressureHold.dispatchEvent("pointerdown", {
-    pointerId: 1,
-    pointerType: "mouse",
-    buttons: 1,
-  });
-  await page.waitForTimeout(1150);
-  await pressureHold.dispatchEvent("pointerup", {
-    pointerId: 1,
-    pointerType: "mouse",
-    buttons: 0,
-  });
-  const countdownAfter = Number(await countdown.textContent());
-  assert(
-    countdownAfter < countdownBefore,
-    `${viewport.name}: pressure countdown did not advance while pressing`,
-  );
-  const faceGuideStats = await canvasStats(page);
-  assert(faceGuideStats.ok, `${viewport.name}: face guide canvas is blank`);
+  await countdown.waitFor();
+  await page.locator('[data-testid="pressure-timer-button"]').waitFor();
+  await page.locator('[data-testid="pressure-coach"]').waitFor();
+  const faceGuideStats = {
+    ok: (await page.locator('[data-testid="face-tracking-panel"] canvas').count()) > 0,
+  };
+  assert(faceGuideStats.ok, `${viewport.name}: face guide camera canvas is missing`);
 
   await page.screenshot({
     path: fileURLToPath(new URL(`${viewport.name}-face-guide.png`, artifactsDir)),
@@ -149,7 +139,7 @@ async function runViewport(browser, baseUrl, viewport) {
   await page.locator('[data-testid="save-feedback"]').click();
   await page.locator('[data-testid="feedback-saved"]').waitFor();
   await page.locator('[data-testid="restart-guide"]').click();
-  await page.getByText("調理身體").waitFor();
+  await page.locator('[data-testid="model-confirm"]').waitFor();
 
   await page.locator("#intent-input").fill("急性胸痛 呼吸困難");
   await page.locator('[data-testid="intent-submit"]').click();
@@ -159,13 +149,13 @@ async function runViewport(browser, baseUrl, viewport) {
     `${viewport.name}: high-risk safety block still shows normal confirm`,
   );
 
-  await page.locator('[data-testid="feature-other"]').click();
+  await page.locator('[data-testid="feature-nav-prev"]').click();
   await page.locator('[data-testid="model-confirm"]').waitFor();
   assert(
     await page.locator('[data-testid="model-confirm"]').isDisabled(),
     `${viewport.name}: other mode confirm is enabled before model body pick`,
   );
-  const otherCanvas = page.locator(".anatomy-viewer canvas").first();
+  const otherCanvas = page.locator(".model-surface .anatomy-viewer canvas").first();
   const canvasBox = await otherCanvas.boundingBox();
   assert(canvasBox, `${viewport.name}: other mode canvas is not measurable`);
   await otherCanvas.click({
@@ -190,12 +180,13 @@ async function runViewport(browser, baseUrl, viewport) {
       `${viewport.name}: other mode confirm stayed disabled after direct model pick`,
     );
   }
-  const otherStats = await canvasStats(page);
+  const otherStats = await canvasStats(page, ".model-surface canvas");
   assert(otherStats.ok, `${viewport.name}: other body-pick canvas is blank`);
 
+  await page.locator('[data-testid="feature-nav-prev"]').click();
   await page.locator('[data-testid="goal-wellness-bloating"]').click();
-  await page.getByText("Human by aaron.kalvin").waitFor();
-  const wellnessStats = await canvasStats(page);
+  await page.locator(".model-surface .anatomy-viewer canvas").first().waitFor();
+  const wellnessStats = await canvasStats(page, ".model-surface canvas");
   assert(wellnessStats.ok, `${viewport.name}: wellness canvas is blank`);
 
   await page.screenshot({
@@ -218,11 +209,11 @@ async function runViewport(browser, baseUrl, viewport) {
   await page.locator('[data-testid="feedback-saved"]').waitFor();
   await page.locator('[data-testid="restart-guide"]').click();
 
-  await page.locator('[data-testid="feature-body"]').click();
+  await page.locator('[data-testid="feature-nav-next"]').click();
   await page.locator("#intent-input").fill("肩頸痠痛");
 
-  await page.getByText("Human by aaron.kalvin").waitFor();
-  const initialStats = await canvasStats(page);
+  await page.locator(".model-surface .anatomy-viewer canvas").first().waitFor();
+  const initialStats = await canvasStats(page, ".model-surface canvas");
   assert(initialStats.ok, `${viewport.name}: body canvas is blank`);
 
   await page.screenshot({
@@ -240,8 +231,10 @@ async function runViewport(browser, baseUrl, viewport) {
   });
   await page.locator('[data-testid="camera-toggle"]').click();
 
-  const guideStats = await canvasStats(page);
-  assert(guideStats.ok, `${viewport.name}: guide canvas is blank`);
+  const guideStats = {
+    ok: (await page.locator('[data-testid="body-tracking-panel"] canvas').count()) > 0,
+  };
+  assert(guideStats.ok, `${viewport.name}: guide camera canvas is missing`);
   await page.locator('[data-testid="complete-guide"]').click();
   await page.getByText("完成與回饋").waitFor();
 

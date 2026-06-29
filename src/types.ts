@@ -1,4 +1,6 @@
 export type FeatureModeId = "face" | "body" | "wellness" | "other";
+export type SidePreference = "both" | "left" | "right";
+export type PointSide = "left" | "right" | "midline";
 
 export type BodyRegionId =
   | "head-neck"
@@ -110,6 +112,8 @@ export type AcupointKnowledgeEntry = Pick<
 export type PointMatch = GuidePoint & {
   reason: string;
   score: number;
+  baseId?: string;
+  side?: PointSide;
 };
 
 export type AcupointRecommendation = {

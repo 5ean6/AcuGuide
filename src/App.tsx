@@ -10,11 +10,13 @@ import { CompletionPanel } from "./components/CompletionPanel";
 import { FeatureSelector } from "./components/FeatureSelector";
 import { GuidancePanel } from "./components/GuidancePanel";
 import { IntentBar } from "./components/IntentBar";
+import { PressureCoach } from "./components/PressureCoach";
 import { RecommendationPanel } from "./components/RecommendationPanel";
 import { SafetyAlertPanel } from "./components/SafetyAlertPanel";
 import { featureModes, guideGoals } from "./data/acupoints";
 import { getSymptomMarker } from "./data/symptomLocations";
 import { nextDemoStage } from "./lib/demoFlow";
+import { expandLateralityPoints } from "./lib/laterality";
 import {
   createFeedbackRecord,
   loadFeedbackRecords,
@@ -36,6 +38,7 @@ import type {
   CunCalibration,
   FeatureModeId,
   PointMatch,
+  SidePreference,
 } from "./types";
 
 const defaultCalibration: CunCalibration = {
@@ -80,6 +83,7 @@ export default function App() {
     null,
   );
   const [activePointId, setActivePointId] = useState("");
+  const [sidePreference, setSidePreference] = useState<SidePreference>("both");
   const [isTargetContact, setIsTargetContact] = useState(false);
   const [submittedPoints, setSubmittedPoints] = useState<PointMatch[] | null>(null);
   const [submittedRecommendation, setSubmittedRecommendation] =
@@ -166,7 +170,7 @@ export default function App() {
       : stage === "guide" && submittedRecommendation
         ? submittedRecommendation
         : localRecommendation;
-  const previewPoints =
+  const rawPreviewPoints =
     awaitingOtherBodyPick || safetyBlocksRecommendation
       ? []
       : previewGoal || !submittedPoints
@@ -174,6 +178,10 @@ export default function App() {
       : stage === "select" || stage === "guide" || stage === "complete"
         ? submittedPoints
         : localPoints;
+  const previewPoints = useMemo(
+    () => expandLateralityPoints(rawPreviewPoints, sidePreference),
+    [rawPreviewPoints, sidePreference],
+  );
   const activeId = previewGoal ? previewPoints[0]?.id : activePointId || previewPoints[0]?.id;
   const activePoint = previewPoints.find((point) => point.id === activeId) ?? previewPoints[0];
   const activePointIndex = Math.max(
@@ -183,6 +191,13 @@ export default function App() {
   const activeTargetLabel = activePoint
     ? `${activePoint.name} - ${activePoint.location}`
     : undefined;
+  const previewModeIndex = Math.max(
+    0,
+    featureModes.findIndex((item) => item.id === previewMode),
+  );
+  const previousPreviewMode =
+    featureModes[(previewModeIndex + featureModes.length - 1) % featureModes.length];
+  const nextPreviewMode = featureModes[(previewModeIndex + 1) % featureModes.length];
 
   useEffect(() => {
     setIsTargetContact(false);
@@ -500,6 +515,13 @@ export default function App() {
             />
           </section>
 
+          <div className="model-carousel-shell">
+            <div className="model-ghost model-ghost-prev" aria-hidden="true">
+              <Suspense fallback={null}>
+                <AnatomyViewer mode={previousPreviewMode.id} points={[]} autoRotate={false} />
+              </Suspense>
+            </div>
+
           <section
             className={`model-surface ${awaitingOtherBodyPick ? "is-picking-body-region" : ""}`}
             aria-label={`${previewModeInfo.title}模型`}
@@ -528,6 +550,23 @@ export default function App() {
                 onBodyRegionSelect={handleBodyRegionSelect}
               />
             </Suspense>
+            <div className="side-preference-control" aria-label="不適側選擇">
+              {(["both", "left", "right"] as SidePreference[]).map((side) => (
+                <button
+                  key={side}
+                  type="button"
+                  className={sidePreference === side ? "is-active" : ""}
+                  onClick={() => {
+                    playInteractionFeedback("select");
+                    setSidePreference(side);
+                    setActivePointId("");
+                  }}
+                  data-testid={`side-${side}`}
+                >
+                  {side === "both" ? "雙側" : side === "left" ? "左側" : "右側"}
+                </button>
+              ))}
+            </div>
             <div className="model-decision-panel">
               {hasSafetyNotice(safetyAssessment) ? (
                 <SafetyAlertPanel assessment={safetyAssessment} />
@@ -559,6 +598,13 @@ export default function App() {
               ) : null}
             </div>
           </section>
+
+            <div className="model-ghost model-ghost-next" aria-hidden="true">
+              <Suspense fallback={null}>
+                <AnatomyViewer mode={nextPreviewMode.id} points={[]} autoRotate={false} />
+              </Suspense>
+            </div>
+          </div>
         </main>
       ) : null}
 
@@ -571,12 +617,28 @@ export default function App() {
                   targetPointId={activePoint?.id}
                   targetLabel={activeTargetLabel}
                   onTargetContactChange={setIsTargetContact}
+                  treatmentInstruction={
+                    activePoint ? `${activePoint.action} / ${activePoint.duration}` : undefined
+                  }
+                  overlay={
+                    activePoint ? (
+                      <PressureCoach point={activePoint} detectedContact={isTargetContact} />
+                    ) : null
+                  }
                 />
               ) : (
                 <BodyTrackingPanel
                   targetPointId={activePoint?.id}
                   targetLabel={activeTargetLabel}
                   onTargetContactChange={setIsTargetContact}
+                  treatmentInstruction={
+                    activePoint ? `${activePoint.action} / ${activePoint.duration}` : undefined
+                  }
+                  overlay={
+                    activePoint ? (
+                      <PressureCoach point={activePoint} detectedContact={isTargetContact} />
+                    ) : null
+                  }
                 />
               )}
             </Suspense>
@@ -594,7 +656,9 @@ export default function App() {
                   <span>
                     {activePointIndex + 1} / {previewPoints.length}
                   </span>
-                  <strong data-testid="active-ar-point-name">{activePoint.name}</strong>
+                  <strong data-testid="active-ar-point-name">
+                    {activePoint.name}
+                  </strong>
                 </div>
                 <button
                   type="button"
@@ -612,8 +676,6 @@ export default function App() {
             activePointId={activeId}
             calibration={calibration}
             query={submittedLabel}
-            targetContact={isTargetContact}
-            recommendation={recommendation}
             onSelectPoint={handleGuidePointSelect}
             onRestart={handleRestart}
             onCalibrate={() => setStage(nextDemoStage("guide", "requestCalibration"))}
@@ -646,6 +708,22 @@ export default function App() {
           query={submittedLabel || submittedQuery}
           points={previewPoints}
           recommendation={submittedRecommendation}
+          modelPreview={
+            <div className="complete-model-stage" aria-label="Completed body area model">
+              <Suspense fallback={<ViewerFallback />}>
+                <AnatomyViewer
+                  mode={mode}
+                  points={previewPoints}
+                  activePointId={activeId}
+                  focusPointId={activeId}
+                  symptomMarker={modelSymptomMarker}
+                  symptomTone="complete"
+                  focusSymptomMarker
+                  autoRotate={false}
+                />
+              </Suspense>
+            </div>
+          }
           feedbackCount={feedbackCount}
           onSaveFeedback={handleFeedbackSave}
           onRestart={handleRestart}

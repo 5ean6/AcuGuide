@@ -1,5 +1,5 @@
 import { CheckCircle2, RotateCcw, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { AcupointRecommendation, FeatureMode, PointMatch } from "../types";
 
 type CompletionPanelProps = {
@@ -7,6 +7,7 @@ type CompletionPanelProps = {
   query: string;
   points: PointMatch[];
   recommendation: AcupointRecommendation | null;
+  modelPreview?: ReactNode;
   feedbackCount: number;
   onSaveFeedback: (rating: number, note: string) => boolean;
   onRestart: () => void;
@@ -17,6 +18,7 @@ export function CompletionPanel({
   query,
   points,
   recommendation,
+  modelPreview,
   feedbackCount,
   onSaveFeedback,
   onRestart,
@@ -51,7 +53,7 @@ export function CompletionPanel({
 
         <div className="complete-point-list" role="list" aria-label="本次穴位">
           {points.map((point) => (
-            <span key={point.id} role="listitem">
+            <span key={point.id} role="listitem" data-point-name={point.name}>
               {point.name} · MediaPipe 定位
             </span>
           ))}
@@ -62,6 +64,8 @@ export function CompletionPanel({
           回饋只寫入此瀏覽器 localStorage，不會上傳影像或症狀內容。
         </p>
       </section>
+
+      {modelPreview}
 
       <section className="feedback-panel" aria-label="回饋紀錄">
         <div>

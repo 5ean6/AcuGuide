@@ -3,15 +3,12 @@ import type { ReactNode } from "react";
 import { safetyNote } from "../data/acupoints";
 import { getAcupointGeometry } from "../data/acupointGeometry";
 import type { AcupointRecommendation, CunCalibration, PointMatch } from "../types";
-import { PressureCoach } from "./PressureCoach";
-import { RecommendationPanel } from "./RecommendationPanel";
 
 type GuidancePanelProps = {
   points: PointMatch[];
   activePointId: string;
   calibration: CunCalibration;
   query: string;
-  targetContact: boolean;
   onSelectPoint: (id: string) => void;
   onRestart: () => void;
   onCalibrate: () => void;
@@ -25,13 +22,10 @@ export function GuidancePanel({
   activePointId,
   calibration,
   query,
-  targetContact,
   onSelectPoint,
   onRestart,
   onCalibrate,
   onComplete,
-  modelPreview,
-  recommendation,
 }: GuidancePanelProps) {
   const activePoint = points.find((point) => point.id === activePointId) ?? points[0];
   const activeGeometry = activePoint ? getAcupointGeometry(activePoint.id) : undefined;
@@ -49,12 +43,6 @@ export function GuidancePanel({
           {query.trim() ? query : "預設示意"} · {calibrationLabel}
         </p>
       </div>
-
-      {modelPreview}
-
-      {recommendation ? (
-        <RecommendationPanel recommendation={recommendation} points={points} />
-      ) : null}
 
       {activePoint ? (
         <>
@@ -102,7 +90,6 @@ export function GuidancePanel({
             </div>
           </dl>
           </section>
-          <PressureCoach point={activePoint} detectedContact={targetContact} />
         </>
       ) : null}
 
